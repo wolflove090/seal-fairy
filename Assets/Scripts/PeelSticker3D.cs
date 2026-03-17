@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -31,10 +32,10 @@ public sealed class PeelSticker3D : MonoBehaviour
     [SerializeField] private Color shadowTint = new(0f, 0f, 0f, 0.18f);
     [SerializeField, Range(0f, 0.4f)] private float shadowFlatten = 0.12f;
 
-    [Header("Interaction")]
-    [SerializeField] private bool allowPointerDrag = true;
-    [SerializeField, Range(0.05f, 0.5f)] private float edgeGrabRatio = 0.22f;
-    [SerializeField, Min(1f)] private float returnSpeed = 6f;
+    [Header("Tap Interaction")]
+    [FormerlySerializedAs("allowPointerDrag")]
+    [SerializeField, InspectorName("Enable Tap Peel")] private bool allowTapPeel = true;
+    [SerializeField, Min(0.05f), InspectorName("Auto Peel Duration")] private float autoPeelDuration = 0.45f;
 
     private const string FrontChildName = "FrontFace";
     private const string BackChildName = "BackFace";
@@ -54,7 +55,7 @@ public sealed class PeelSticker3D : MonoBehaviour
     private Material backMaterial;
     private Material shadowMaterial;
     private Camera cachedCamera;
-    private bool dragging;
+    private bool isAutoPeeling;
 
     public float PeelAmount
     {
@@ -71,6 +72,24 @@ public sealed class PeelSticker3D : MonoBehaviour
         frontTexture = front;
         backTexture = back;
         RebuildGeometry();
+    }
+
+    public bool ContainsScreenPoint(Camera activeCamera, Vector3 screenPoint)
+    {
+        return activeCamera != null
+            && TryGetLocalPointer(screenPoint, activeCamera, out Vector3 localPoint)
+            && ContainsLocalPoint(localPoint);
+    }
+
+    public bool TryGetPlaneHitPoint(Camera activeCamera, Vector3 screenPoint, out Vector3 worldPoint)
+    {
+        if (activeCamera != null && TryGetWorldPointer(screenPoint, activeCamera, out worldPoint))
+        {
+            return true;
+        }
+
+        worldPoint = default;
+        return false;
     }
 
     private void Awake()
@@ -101,13 +120,19 @@ public sealed class PeelSticker3D : MonoBehaviour
             return;
         }
 
-        if (allowPointerDrag)
+        if (allowTapPeel)
         {
             HandlePointer();
         }
-        else if (!dragging && peelAmount > 0f)
+
+        if (isAutoPeeling)
         {
-            PeelAmount = Mathf.MoveTowards(peelAmount, 0f, Time.deltaTime / returnSpeed);
+            float nextAmount = Mathf.MoveTowards(peelAmount, 1f, Time.deltaTime / autoPeelDuration);
+            PeelAmount = nextAmount;
+            if (nextAmount >= 1f)
+            {
+                Destroy(gameObject);
+            }
         }
     }
 
@@ -129,64 +154,74 @@ public sealed class PeelSticker3D : MonoBehaviour
             return;
         }
 
-        Vector3 pointer = Input.mousePosition;
-        if (Input.GetMouseButtonDown(0) && TryGetLocalPointer(pointer, activeCamera, out Vector3 localDown) && CanGrab(localDown))
+        if (!TryGetPointerDownPosition(out Vector3 pointer))
         {
-            dragging = true;
+            return;
         }
 
-        if (dragging && Input.GetMouseButton(0) && TryGetLocalPointer(pointer, activeCamera, out Vector3 localDrag))
+        if (!isAutoPeeling && TryGetLocalPointer(pointer, activeCamera, out Vector3 localDown) && ContainsLocalPoint(localDown))
         {
-            PeelAmount = GetPeelAmountFromLocalPoint(localDrag);
-        }
-
-        if (dragging && Input.GetMouseButtonUp(0))
-        {
-            dragging = false;
-        }
-
-        if (!dragging && peelAmount > 0f)
-        {
-            PeelAmount = Mathf.MoveTowards(peelAmount, 0f, Time.deltaTime / returnSpeed);
+            StartAutoPeel();
         }
     }
 
-    private bool CanGrab(Vector3 localPoint)
+    private static bool TryGetPointerDownPosition(out Vector3 screenPoint)
+    {
+        if (Input.touchCount > 0)
+        {
+            Touch touch = Input.GetTouch(0);
+            if (touch.phase == TouchPhase.Began)
+            {
+                screenPoint = touch.position;
+                return true;
+            }
+        }
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            screenPoint = Input.mousePosition;
+            return true;
+        }
+
+        screenPoint = default;
+        return false;
+    }
+
+    private void StartAutoPeel()
+    {
+        isAutoPeeling = true;
+    }
+
+    private bool ContainsLocalPoint(Vector3 localPoint)
     {
         float halfWidth = size.x * 0.5f;
         float halfHeight = size.y * 0.5f;
-        if (Mathf.Abs(localPoint.y) > halfHeight)
-        {
-            return false;
-        }
-
-        float edgeThreshold = size.x * edgeGrabRatio;
-        return peelSide == PeelSide.Right
-            ? localPoint.x >= halfWidth - edgeThreshold
-            : localPoint.x <= -halfWidth + edgeThreshold;
-    }
-
-    private float GetPeelAmountFromLocalPoint(Vector3 localPoint)
-    {
-        float halfWidth = size.x * 0.5f;
-        float normalized = peelSide == PeelSide.Right
-            ? Mathf.InverseLerp(halfWidth, -halfWidth, localPoint.x)
-            : Mathf.InverseLerp(-halfWidth, halfWidth, localPoint.x);
-
-        return Mathf.Clamp01(normalized);
+        return Mathf.Abs(localPoint.x) <= halfWidth && Mathf.Abs(localPoint.y) <= halfHeight;
     }
 
     private bool TryGetLocalPointer(Vector3 screenPoint, Camera activeCamera, out Vector3 localPoint)
+    {
+        if (TryGetWorldPointer(screenPoint, activeCamera, out Vector3 worldPoint))
+        {
+            localPoint = transform.InverseTransformPoint(worldPoint);
+            return true;
+        }
+
+        localPoint = default;
+        return false;
+    }
+
+    private bool TryGetWorldPointer(Vector3 screenPoint, Camera activeCamera, out Vector3 worldPoint)
     {
         Ray ray = activeCamera.ScreenPointToRay(screenPoint);
         Plane plane = new(transform.forward, transform.position);
         if (plane.Raycast(ray, out float distance))
         {
-            localPoint = transform.InverseTransformPoint(ray.GetPoint(distance));
+            worldPoint = ray.GetPoint(distance);
             return true;
         }
 
-        localPoint = default;
+        worldPoint = default;
         return false;
     }
 

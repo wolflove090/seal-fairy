@@ -12,7 +12,7 @@ public static class PeelStickerDemoBootstrap
         }
 
         Scene scene = SceneManager.GetActiveScene();
-        if (scene.rootCount > 0)
+        if (HasNonRuntimeRoots(scene))
         {
             return;
         }
@@ -20,6 +20,19 @@ public static class PeelStickerDemoBootstrap
         CreateCamera();
         CreateBackdrop();
         CreateSticker();
+    }
+
+    private static bool HasNonRuntimeRoots(Scene scene)
+    {
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name != "Tap Sticker Placer")
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void CreateCamera()
