@@ -1,9 +1,53 @@
-# シール配置と剥がし機能 ToDo
+# UIワイヤー画面 ToDo
 
-## フェーズ別 ToDo
-- 配置フェーズ: [todo_シール配置フェーズ.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/todo_シール配置フェーズ.md)
-- 剥がしフェーズ: [todo_シール剥がしフェーズ.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/todo_シール剥がしフェーズ.md)
+## フェーズ1: アセット配置準備
+- `Assets/UI/` フォルダを作成する。
+- `Assets/UI/UXML/` フォルダを作成する。
+- `Assets/UI/USS/` フォルダを作成する。
+- `Assets/UI/Settings/` フォルダを作成する。
+- HUD 用の UXML ファイル名、USS ファイル名、Panel Settings 名を決める。
 
-## 共通前提
-- ゲームコアはドメイン層へ置き、Unity 依存は Presenter / Adapter へ隔離する。
-- フェーズ間の遷移制御は `GameFlowService` と `SealFairyGameController` に集約する。
+## フェーズ2: UXML 作成
+- HUD 全体のルート `root` を作成する。
+- 上段コンテナ `top-bar` を作成する。
+- 左上の `money-panel` と `money-label` を作成する。
+- 右上の `ready-button` を作成する。
+- 右下コンテナ `bottom-right-menu` を作成する。
+- `fairy-button` と `shop-button` を作成する。
+- 初期文言を `お金：XXX円`、`準備完了`、`妖精`、`ショップ` で設定する。
+
+## フェーズ3: USS 作成
+- ルートを全画面ストレッチに設定する。
+- 白背景を設定する。
+- 所持金パネルに薄グレー背景、横長サイズ、小さめ角丸を設定する。
+- `ready-button` にワイヤー準拠のサイズ、薄グレー背景、小さめ角丸を設定する。
+- `bottom-right-menu` を右下固定の縦並びに設定する。
+- `fairy-button` と `shop-button` の幅、高さ、背景色、角丸を揃える。
+- 上段と右下の余白を 1920x1080 基準で調整する。
+- フォントサイズと文字色を調整し、視認性を確認する。
+
+## フェーズ4: シーン組み込み
+- Panel Settings アセットを作成する。
+- `Assets/Main.unity` を開く。
+- HUD 用 GameObject を追加する。
+- GameObject に `UIDocument` を追加する。
+- `UIDocument` に UXML を設定する。
+- `UIDocument` に Panel Settings を設定する。
+
+## フェーズ5: 表示確認
+- 1920x1080 の Game ビューでワイヤーに近い位置関係になっていることを確認する。
+- 左上に `お金：XXX円` が表示されることを確認する。
+- 右上に `準備完了` ボタンが表示されることを確認する。
+- 右下に `妖精` と `ショップ` ボタンが縦並びで表示されることを確認する。
+- UI がワールド移動の影響を受けず画面固定であることを確認する。
+- クリックしても何も起きないことを確認する。
+
+## フェーズ6: レイアウト耐性確認
+- 16:9 以外の Game ビュー比率でも右下メニューが画面外に出ないことを確認する。
+- 上段 UI が左右端へ寄りすぎず、余白を維持できていることを確認する。
+- 文言がボタンやパネルからはみ出さないことを確認する。
+
+## 完了条件
+- UXML、USS、Panel Settings、`UIDocument` の接続が完了している。
+- 要件書にある 4 要素が静的 UI として表示される。
+- 動的更新、クリック処理、画面遷移は未実装のまま維持される。
