@@ -1,0 +1,15 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/USS/HudScreen.uss?fileID=7433441132597879392&amp;guid=ad002d659f68a4d8b9b8dd04a89e37e3&amp;type=3#HudScreen"/>
+    <ui:VisualElement name="root">
+        <ui:VisualElement name="top-bar">
+            <ui:VisualElement name="money-panel">
+                <ui:Label name="money-label" text="お金：XXX円"/>
+            </ui:VisualElement>
+            <ui:Button name="ready-button" text="準備完了"/>
+        </ui:VisualElement>
+        <ui:VisualElement name="bottom-right-menu">
+            <ui:Button name="fairy-button" text="妖精"/>
+            <ui:Button name="shop-button" text="ショップ"/>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

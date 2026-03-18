@@ -1,0 +1,102 @@
+#root {
+    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+#top-bar {
+    position: absolute;
+    left: 32px;
+    right: 32px;
+    top: 20px;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+#money-panel {
+    width: 500px;
+    min-height: 140px;
+    padding-left: 28px;
+    padding-right: 28px;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    background-color: rgb(217, 217, 217);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    justify-content: center;
+}
+
+#money-label {
+    -unity-text-align: middle-left;
+    font-size: 52px;
+    color: rgb(0, 0, 0);
+    white-space: nowrap;
+}
+
+#ready-button {
+    width: 370px;
+    min-height: 140px;
+    background-color: rgb(217, 217, 217);
+    color: rgb(0, 0, 0);
+    font-size: 52px;
+    transition-property: background-color, scale;
+    transition-duration: 0.12s;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;    
+}
+
+#bottom-right-menu {
+    position: absolute;
+    right: 32px;
+    bottom: 36px;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+#fairy-button,
+#shop-button {
+    width: 370px;
+    min-height: 140px;
+    margin-top: 0;
+    margin-bottom: 24px;
+    background-color: rgb(217, 217, 217);
+    color: rgb(0, 0, 0);
+    font-size: 52px;
+    transition-property: background-color, scale;
+    transition-duration: 0.12s;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;    
+}
+
+#shop-button {
+    margin-bottom: 0;
+}
+
+#ready-button:hover,
+#fairy-button:hover,
+#shop-button:hover {
+    background-color: rgb(190, 190, 190);
+}
+
+#ready-button:active,
+#fairy-button:active,
+#shop-button:active {
+    background-color: rgb(170, 170, 170);
+    scale: 0.98;
+}
