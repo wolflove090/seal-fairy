@@ -1,45 +1,44 @@
-# シール妖精配置と剥がしログ更新 ToDo
+# シール妖精発見エフェクト ToDo
 
-## フェーズ1: 既存処理の確認
-- [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) を読み、実際にシールを生成している箇所を特定する。
-- [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) を読み、めくり完了後に `Destroy(gameObject)` している箇所を特定する。
-- 妖精有無を `MonoBehaviour` に直接持たせない方針で進めることを確認する。
+## フェーズ1: 既存処理の再確認
+- [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) の `SpawnSticker` で、配置直後に妖精判定と registry 登録が行われていることを確認する。
+- [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) の `Update` で、めくり完了時に即時 `Destroy(gameObject)` している箇所を確認する。
+- [StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerRuntimeRegistry.cs) の `TryConsumeFairy` が重複ログ防止に使えることを確認する。
 
-## フェーズ2: 妖精管理データの追加
-- `Assets/Scripts/StickerRuntimeRegistry.cs` を新規作成する。
-- シールと妖精有無を対応付ける管理データを実装する。
-- `Register` と `TryConsumeFairy` の 2 操作を最低限用意する。
-- 同じシールで二重にログが出ないよう、参照時にデータを削除する実装にする。
+## フェーズ2: エフェクト prefab 参照方法の決定
+- `KiraKiraEffect.prefab` を `Resources.Load` で取得できる配置へ移す。
+- `TapStickerPlacer` の自動生成構成を壊さず、コードだけで prefab を取得できるようにする。
+- 参照取得失敗時でもシール配置処理が落ちないように `null` ガードを入れる。
 
-## フェーズ3: 配置時の妖精割り当て追加
-- [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) の `SpawnSticker` 周辺を修正する。
-- 実際に生成したシールだけを登録対象にする。
-- `UnityEngine.Random` を直接使い、50% 判定を配置時に 1 回だけ行う。
-- 判定結果を `StickerRuntimeRegistry` に登録する。
-- テンプレート用の非表示シールを誤って登録しないことを確認する。
+## フェーズ3: 配置時のエフェクト仕込み追加
+- [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) にエフェクト生成 helper を追加する。
+- 妖精ありシールにだけ `KiraKiraEffect.prefab` を生成する。
+- エフェクトを対象シールの子オブジェクトにする。
+- localPosition を `Vector3.zero`、localRotation を `Quaternion.identity`、localScale を `Vector3.one` に初期化する。
+- 妖精なしシールやテンプレートシールにはエフェクトを生成しない。
 
-## フェーズ4: めくり完了時ログの追加
-- [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) の自動めくり完了分岐を修正する。
-- `Destroy(gameObject)` の前に `StickerRuntimeRegistry` へ問い合わせる。
-- 妖精がいた場合のみ `Debug.Log` を出力する。
-- 妖精がいなかった場合、または registry 未登録の場合は何も出力しない。
-- ログは「めくり完了時」に 1 回だけ出ることを担保する。
+## フェーズ4: めくり完了後の 2 秒遅延破棄
+- [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) に完了状態フラグと遅延タイマーを追加する。
+- めくり完了時にログ出力と破棄待機開始を 1 回だけ行うようにする。
+- 即時 `Destroy(gameObject)` を削除し、2 秒経過後の破棄へ置き換える。
+- 遅延中は再タップや重複完了処理が入らないようにする。
 
-## フェーズ5: 後始末と安全性確認
-- めくり完了後に registry 側のデータが削除されることを確認する。
-- 未登録シールや初期デモシールをめくっても例外が出ないことを確認する。
-- 既存のシール配置や自動めくり破棄の流れを壊していないことを確認する。
+## フェーズ5: 既存ログとの整合確認
+- 妖精ありシールでは既存ログが 1 回だけ出ることを維持する。
+- 妖精なしシールではログが出ないことを維持する。
+- 初期デモシールはエフェクト対象外で、未登録でも例外が出ないことを確認する。
 
-## フェーズ6: 手動確認
-- シールを複数枚配置し、通常どおり配置できることを確認する。
-- 複数のシールを順にめくり、妖精がいたシールでのみ Console にログが出ることを確認する。
-- 妖精がいなかったシールではログが出ないことを確認する。
-- 同じシールで同一ログが重複しないことを確認する。
-- めくり後にシールが既存どおり破棄されることを確認する。
+## フェーズ6: Unity 上での手動確認
+- 妖精ありシールにのみエフェクト子オブジェクトが付くことを確認する。
+- 未剥がし状態でキラキラが見えないことを確認する。
+- 妖精ありシールをめくるとキラキラが見えることを確認する。
+- 妖精なしシールではキラキラが見えないことを確認する。
+- めくり完了後、シールが約 2 秒残ってから破棄されることを確認する。
+- 同一シールでログ重複、エフェクト二重生成、重複破棄が起きないことを確認する。
 
 ## 完了条件
-- 配置した各シールに対して、50% の確率で妖精有無が内部登録される。
-- 妖精有無は `MonoBehaviour` 外の管理データで保持される。
-- めくり完了時に、妖精がいたシールでのみ Console ログが出る。
-- 妖精がいないシールではログが出ない。
-- 同一シールで重複ログが出ない。
+- 配置した妖精ありシールにのみ `KiraKiraEffect.prefab` が子オブジェクトとして仕込まれる。
+- 未剥がし状態でエフェクトは見えず、めくり後に見える。
+- シールはめくり完了後に即時破棄されず、2 秒後に破棄される。
+- 妖精ありシールでのみ既存ログが 1 回出る。
+- 妖精なしシールと初期デモシールで例外や不要演出が発生しない。
