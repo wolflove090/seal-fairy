@@ -1,53 +1,45 @@
-# UIワイヤー画面 ToDo
+# シール妖精配置と剥がしログ更新 ToDo
 
-## フェーズ1: アセット配置準備
-- `Assets/UI/` フォルダを作成する。
-- `Assets/UI/UXML/` フォルダを作成する。
-- `Assets/UI/USS/` フォルダを作成する。
-- `Assets/UI/Settings/` フォルダを作成する。
-- HUD 用の UXML ファイル名、USS ファイル名、Panel Settings 名を決める。
+## フェーズ1: 既存処理の確認
+- [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) を読み、実際にシールを生成している箇所を特定する。
+- [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) を読み、めくり完了後に `Destroy(gameObject)` している箇所を特定する。
+- 妖精有無を `MonoBehaviour` に直接持たせない方針で進めることを確認する。
 
-## フェーズ2: UXML 作成
-- HUD 全体のルート `root` を作成する。
-- 上段コンテナ `top-bar` を作成する。
-- 左上の `money-panel` と `money-label` を作成する。
-- 右上の `ready-button` を作成する。
-- 右下コンテナ `bottom-right-menu` を作成する。
-- `fairy-button` と `shop-button` を作成する。
-- 初期文言を `お金：XXX円`、`準備完了`、`妖精`、`ショップ` で設定する。
+## フェーズ2: 妖精管理データの追加
+- `Assets/Scripts/StickerRuntimeRegistry.cs` を新規作成する。
+- シールと妖精有無を対応付ける管理データを実装する。
+- `Register` と `TryConsumeFairy` の 2 操作を最低限用意する。
+- 同じシールで二重にログが出ないよう、参照時にデータを削除する実装にする。
 
-## フェーズ3: USS 作成
-- ルートを全画面ストレッチに設定する。
-- 白背景を設定する。
-- 所持金パネルに薄グレー背景、横長サイズ、小さめ角丸を設定する。
-- `ready-button` にワイヤー準拠のサイズ、薄グレー背景、小さめ角丸を設定する。
-- `bottom-right-menu` を右下固定の縦並びに設定する。
-- `fairy-button` と `shop-button` の幅、高さ、背景色、角丸を揃える。
-- 上段と右下の余白を 1920x1080 基準で調整する。
-- フォントサイズと文字色を調整し、視認性を確認する。
+## フェーズ3: 配置時の妖精割り当て追加
+- [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) の `SpawnSticker` 周辺を修正する。
+- 実際に生成したシールだけを登録対象にする。
+- `UnityEngine.Random` を直接使い、50% 判定を配置時に 1 回だけ行う。
+- 判定結果を `StickerRuntimeRegistry` に登録する。
+- テンプレート用の非表示シールを誤って登録しないことを確認する。
 
-## フェーズ4: シーン組み込み
-- Panel Settings アセットを作成する。
-- `Assets/Main.unity` を開く。
-- HUD 用 GameObject を追加する。
-- GameObject に `UIDocument` を追加する。
-- `UIDocument` に UXML を設定する。
-- `UIDocument` に Panel Settings を設定する。
+## フェーズ4: めくり完了時ログの追加
+- [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) の自動めくり完了分岐を修正する。
+- `Destroy(gameObject)` の前に `StickerRuntimeRegistry` へ問い合わせる。
+- 妖精がいた場合のみ `Debug.Log` を出力する。
+- 妖精がいなかった場合、または registry 未登録の場合は何も出力しない。
+- ログは「めくり完了時」に 1 回だけ出ることを担保する。
 
-## フェーズ5: 表示確認
-- 1920x1080 の Game ビューでワイヤーに近い位置関係になっていることを確認する。
-- 左上に `お金：XXX円` が表示されることを確認する。
-- 右上に `準備完了` ボタンが表示されることを確認する。
-- 右下に `妖精` と `ショップ` ボタンが縦並びで表示されることを確認する。
-- UI がワールド移動の影響を受けず画面固定であることを確認する。
-- クリックしても何も起きないことを確認する。
+## フェーズ5: 後始末と安全性確認
+- めくり完了後に registry 側のデータが削除されることを確認する。
+- 未登録シールや初期デモシールをめくっても例外が出ないことを確認する。
+- 既存のシール配置や自動めくり破棄の流れを壊していないことを確認する。
 
-## フェーズ6: レイアウト耐性確認
-- 16:9 以外の Game ビュー比率でも右下メニューが画面外に出ないことを確認する。
-- 上段 UI が左右端へ寄りすぎず、余白を維持できていることを確認する。
-- 文言がボタンやパネルからはみ出さないことを確認する。
+## フェーズ6: 手動確認
+- シールを複数枚配置し、通常どおり配置できることを確認する。
+- 複数のシールを順にめくり、妖精がいたシールでのみ Console にログが出ることを確認する。
+- 妖精がいなかったシールではログが出ないことを確認する。
+- 同じシールで同一ログが重複しないことを確認する。
+- めくり後にシールが既存どおり破棄されることを確認する。
 
 ## 完了条件
-- UXML、USS、Panel Settings、`UIDocument` の接続が完了している。
-- 要件書にある 4 要素が静的 UI として表示される。
-- 動的更新、クリック処理、画面遷移は未実装のまま維持される。
+- 配置した各シールに対して、50% の確率で妖精有無が内部登録される。
+- 妖精有無は `MonoBehaviour` 外の管理データで保持される。
+- めくり完了時に、妖精がいたシールでのみ Console ログが出る。
+- 妖精がいないシールではログが出ない。
+- 同一シールで重複ログが出ない。
