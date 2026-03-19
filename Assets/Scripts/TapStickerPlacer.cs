@@ -1,9 +1,12 @@
+//using System.Numerics;
 using UnityEngine;
 
 [DisallowMultipleComponent]
 public sealed class TapStickerPlacer : MonoBehaviour
 {
     private const string RuntimeObjectName = "Tap Sticker Placer";
+    
+    private static GameObject cachedFairyEffectPrefab;
 
     private Camera cachedCamera;
     private PeelSticker3D templateSticker;
@@ -71,6 +74,17 @@ public sealed class TapStickerPlacer : MonoBehaviour
         }
     }
 
+    private static GameObject LoadFairyEffectPrefab()
+    {
+        if (cachedFairyEffectPrefab != null)
+        {
+            return cachedFairyEffectPrefab;
+        }
+
+        cachedFairyEffectPrefab = Resources.Load<GameObject>("KiraKiraEffect");
+        return cachedFairyEffectPrefab;
+    }
+
     private void CacheTemplateSticker()
     {
         if (templateSticker != null)
@@ -134,6 +148,11 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
         bool hasFairy = Random.value < 0.5f;
         StickerRuntimeRegistry.Register(sticker, hasFairy);
+
+        if (hasFairy)
+        {
+            AttachFairyEffect(sticker);
+        }
     }
 
     private Camera GetActiveCamera()
@@ -167,5 +186,26 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
         screenPoint = default;
         return false;
+    }
+
+    private static void AttachFairyEffect(PeelSticker3D sticker)
+    {
+        if (sticker == null)
+        {
+            return;
+        }
+
+        GameObject fairyEffectPrefab = LoadFairyEffectPrefab();
+        if (fairyEffectPrefab == null)
+        {
+            Debug.LogWarning("KiraKiraEffect.prefab を読み込めませんでした。");
+            return;
+        }
+
+        GameObject fairyEffect = Instantiate(fairyEffectPrefab, sticker.transform);
+        fairyEffect.name = fairyEffectPrefab.name;
+        fairyEffect.transform.localPosition = new Vector3(0, 0, 0.1f);
+        fairyEffect.transform.localRotation = Quaternion.identity;
+        fairyEffect.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
     }
 }

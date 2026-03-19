@@ -56,6 +56,7 @@ public sealed class PeelSticker3D : MonoBehaviour
     private Material shadowMaterial;
     private Camera cachedCamera;
     private bool isAutoPeeling;
+    private bool isPeelComplete;
 
     public float PeelAmount
     {
@@ -120,23 +121,18 @@ public sealed class PeelSticker3D : MonoBehaviour
             return;
         }
 
-        if (allowTapPeel)
+        if (allowTapPeel && !isPeelComplete)
         {
             HandlePointer();
         }
 
-        if (isAutoPeeling)
+        if (isAutoPeeling && !isPeelComplete)
         {
             float nextAmount = Mathf.MoveTowards(peelAmount, 1f, Time.deltaTime / autoPeelDuration);
             PeelAmount = nextAmount;
             if (nextAmount >= 1f)
             {
-                if(StickerRuntimeRegistry.TryConsumeFairy(this, out bool hasFairy) && hasFairy)
-                {
-                    Debug.Log("妖精を発見！");
-                }
-
-                Destroy(gameObject);
+                CompletePeel();
             }
         }
     }
@@ -195,6 +191,24 @@ public sealed class PeelSticker3D : MonoBehaviour
     private void StartAutoPeel()
     {
         isAutoPeeling = true;
+    }
+
+    private void CompletePeel()
+    {
+        if (isPeelComplete)
+        {
+            return;
+        }
+
+        isPeelComplete = true;
+        isAutoPeeling = false;
+
+        if (StickerRuntimeRegistry.TryConsumeFairy(this, out bool hasFairy) && hasFairy)
+        {
+            Debug.Log("妖精を発見！");
+        }
+
+        Destroy(gameObject, 0.5f);
     }
 
     private bool ContainsLocalPoint(Vector3 localPoint)
