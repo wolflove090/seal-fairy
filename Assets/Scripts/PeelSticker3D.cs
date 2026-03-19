@@ -131,6 +131,11 @@ public sealed class PeelSticker3D : MonoBehaviour
             PeelAmount = nextAmount;
             if (nextAmount >= 1f)
             {
+                if(StickerRuntimeRegistry.TryConsumeFairy(this, out bool hasFairy) && hasFairy)
+                {
+                    Debug.Log("妖精を発見！");
+                }
+
                 Destroy(gameObject);
             }
         }

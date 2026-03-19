@@ -131,6 +131,9 @@ public sealed class TapStickerPlacer : MonoBehaviour
         sticker.transform.localScale = templateSticker.transform.localScale;
         sticker.gameObject.SetActive(true);
         sticker.PeelAmount = 0f;
+
+        bool hasFairy = Random.value < 0.5f;
+        StickerRuntimeRegistry.Register(sticker, hasFairy);
     }
 
     private Camera GetActiveCamera()
