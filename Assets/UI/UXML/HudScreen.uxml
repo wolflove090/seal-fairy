@@ -5,7 +5,7 @@
             <ui:VisualElement name="money-panel">
                 <ui:Label name="money-label" text="お金：XXX円"/>
             </ui:VisualElement>
-            <ui:Button name="ready-button" text="準備完了"/>
+            <ui:Button name="ready-button" text="シールめくりへ"/>
         </ui:VisualElement>
         <ui:VisualElement name="bottom-right-menu">
             <ui:Button name="fairy-button" text="妖精"/>

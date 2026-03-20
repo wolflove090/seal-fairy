@@ -58,6 +58,8 @@ public sealed class PeelSticker3D : MonoBehaviour
     private bool isAutoPeeling;
     private bool isPeelComplete;
 
+    private bool runtimeTapPeelEnabled;
+
     public float PeelAmount
     {
         get => peelAmount;
@@ -66,6 +68,11 @@ public sealed class PeelSticker3D : MonoBehaviour
             peelAmount = Mathf.Clamp01(value);
             RebuildGeometry();
         }
+    }
+
+    public void SetTapPeelEnabled(bool enabled)
+    {
+        runtimeTapPeelEnabled = enabled;
     }
 
     public void SetTextures(Texture2D front, Texture2D back)
@@ -121,7 +128,7 @@ public sealed class PeelSticker3D : MonoBehaviour
             return;
         }
 
-        if (allowTapPeel && !isPeelComplete)
+        if (allowTapPeel && runtimeTapPeelEnabled && !isPeelComplete)
         {
             HandlePointer();
         }

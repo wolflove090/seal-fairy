@@ -9,7 +9,14 @@ public sealed class TapStickerPlacer : MonoBehaviour
     private static GameObject cachedFairyEffectPrefab;
 
     private Camera cachedCamera;
-    private PeelSticker3D templateSticker;
+    [SerializeField] private PeelSticker3D templateSticker;
+
+    private bool isPlacementEnabled = true;
+
+    public void SetPlacementEnabled(bool enabled)
+    {
+        isPlacementEnabled = enabled;
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureRuntimeInstance()
@@ -31,7 +38,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
     private void Update()
     {
-        if (!Application.isPlaying)
+        if (!Application.isPlaying || !isPlacementEnabled)
         {
             return;
         }
@@ -145,6 +152,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
         sticker.transform.localScale = templateSticker.transform.localScale;
         sticker.gameObject.SetActive(true);
         sticker.PeelAmount = 0f;
+        sticker.SetTapPeelEnabled(false);
 
         bool hasFairy = Random.value < 0.5f;
         StickerRuntimeRegistry.Register(sticker, hasFairy);
