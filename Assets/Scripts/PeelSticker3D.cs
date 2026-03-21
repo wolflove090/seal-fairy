@@ -40,6 +40,7 @@ public sealed class PeelSticker3D : MonoBehaviour
     private const string FrontChildName = "FrontFace";
     private const string BackChildName = "BackFace";
     private const string ShadowChildName = "Shadow";
+    private static FairyDiscoveryAnimationPlayer cachedDiscoveryAnimationPlayer;
 
     private MeshFilter frontMeshFilter;
     private MeshRenderer frontMeshRenderer;
@@ -146,6 +147,7 @@ public sealed class PeelSticker3D : MonoBehaviour
 
     private void OnDestroy()
     {
+        StickerRuntimeRegistry.UnRegister(this);
         DestroyGenerated(frontMesh);
         DestroyGenerated(backMesh);
         DestroyGenerated(shadowMesh);
@@ -210,12 +212,32 @@ public sealed class PeelSticker3D : MonoBehaviour
         isPeelComplete = true;
         isAutoPeeling = false;
 
-        if(StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment) && assignment != null && assignment.HasFairy && FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery))
+        if (!StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment) || assignment == null || !assignment.HasFairy)
         {
-            FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
+            Destroy(gameObject, 0.5f);
+            return;
+        }
+
+        FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery);
+        FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
+
+        FairyDiscoveryAnimationPlayer animationPlayer = GetDiscoveryAnimationPlayer();
+        if (animationPlayer != null && animationPlayer.TryPlay(() => Destroy(gameObject)))
+        {
+            return;
         }
 
         Destroy(gameObject, 0.5f);
+    }
+
+    private static FairyDiscoveryAnimationPlayer GetDiscoveryAnimationPlayer()
+    {
+        if (cachedDiscoveryAnimationPlayer == null)
+        {
+            cachedDiscoveryAnimationPlayer = Object.FindAnyObjectByType<FairyDiscoveryAnimationPlayer>();
+        }
+
+        return cachedDiscoveryAnimationPlayer;
     }
 
     private bool ContainsLocalPoint(Vector3 localPoint)

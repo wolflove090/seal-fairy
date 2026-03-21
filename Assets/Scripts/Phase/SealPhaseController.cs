@@ -7,6 +7,7 @@ public sealed class SealPhaseController : MonoBehaviour
     public SealGamePhase CurrentPhase { get; private set; } = SealGamePhase.StickerPlacement;
 
     private SealPhaseEventHub eventHub;
+    private bool isPeelingLocked;
     private bool isSubscribed;
 
     public void Initialize(SealPhaseEventHub eventHub)
@@ -48,21 +49,25 @@ public sealed class SealPhaseController : MonoBehaviour
         ApplyPhase(SealGamePhase.StickerPlacement);
     }
 
+    public void SetPeelingLocked(bool locked)
+    {
+        isPeelingLocked = locked;
+        ApplyTapPeelState();
+    }
+
     private void ApplyPhase(SealGamePhase phase)
     {
         CurrentPhase = phase;
         tapStickerPlacer.SetPlacementEnabled(phase == SealGamePhase.StickerPlacement);
-
-        foreach (PeelSticker3D sticker in StickerRuntimeRegistry.GetActiveStickers())
-        {
-            sticker.SetTapPeelEnabled(phase == SealGamePhase.StickerPeeling);
-        }
+        ApplyTapPeelState();
 
         eventHub?.NotifyPhaseChanged(CurrentPhase);
     }
 
     private void ClearRemainingStickers()
     {
+        isPeelingLocked = false;
+
         foreach (PeelSticker3D sticker in StickerRuntimeRegistry.GetActiveStickers())
         {
             if (sticker != null)
@@ -72,6 +77,16 @@ public sealed class SealPhaseController : MonoBehaviour
         }
 
         StickerRuntimeRegistry.ClearAll();
+    }
+
+    private void ApplyTapPeelState()
+    {
+        bool canPeel = CurrentPhase == SealGamePhase.StickerPeeling && !isPeelingLocked;
+
+        foreach (PeelSticker3D sticker in StickerRuntimeRegistry.GetActiveStickers())
+        {
+            sticker.SetTapPeelEnabled(canPeel);
+        }
     }
 
     private void SubscribeToEventHub()
