@@ -1,0 +1,119 @@
+#fairy-collection-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: none;
+}
+
+#fairy-collection-backdrop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(128, 128, 128, 0.55);
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+#fairy-collection-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 830px;
+    bottom: 0;
+    flex-direction: column;
+    padding: 32px;
+    background-color: rgb(217, 217, 217);
+}
+
+#fairy-collection-title {
+    margin-bottom: 20px;
+    font-size: 42px;
+    color: rgb(0, 0, 0);
+}
+
+#fairy-collection-empty-label {
+    margin-bottom: 16px;
+    font-size: 28px;
+    color: rgb(70, 70, 70);
+    white-space: normal;
+}
+
+#fairy-collection-scroll-view {
+    flex-grow: 1;
+    margin-bottom: 20px;
+    background-color: rgba(255, 255, 255, 0);
+}
+
+#fairy-collection-scroll-view .unity-scroll-view__content-container {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
+}
+
+#fairy-collection-footer {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#fairy-collection-close-button {
+    min-width: 180px;
+    min-height: 72px;
+    background-color: rgb(245, 245, 245);
+    color: rgb(0, 0, 0);
+    font-size: 32px;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+#fairy-collection-count-label {
+    font-size: 28px;
+    color: rgb(0, 0, 0);
+}
+
+.fairy-card {
+    width: 340px;
+    min-height: 360px;
+    margin-right: 20px;
+    margin-bottom: 20px;
+    padding: 20px;
+    background-color: rgb(245, 245, 245);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+}
+
+.fairy-card__name {
+    margin-bottom: 16px;
+    font-size: 32px;
+    color: rgb(0, 0, 0);
+}
+
+.fairy-card__image {
+    height: 180px;
+    margin-bottom: 16px;
+    background-color: rgb(210, 210, 210);
+    -unity-background-scale-mode: scale-to-fit;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-position-y: center;
+}
+
+.fairy-card__image--undiscovered {
+    opacity: 0.45;
+}
+
+.fairy-card__detail {
+    font-size: 24px;
+    color: rgb(70, 70, 70);
+    white-space: normal;
+}
