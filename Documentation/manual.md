@@ -1,251 +1,180 @@
-# 妖精コレクション画面 作業手順書
+# 妖精発見演出再生 作業手順書
 
 ## 目的
-- HUD の `妖精` ボタンから開く妖精コレクション画面を追加する。
-- 登録済み全妖精をスクロール一覧で表示し、未獲得妖精は `*****`、`未発見`、画像グレーアウトで表現する。
-- コレクション画面は半透明グレーの全画面背景で背面入力を遮断し、閉じるボタンと背景押下で閉じられるようにする。
+- 妖精ありシールをめくり切った時に、`ObiRoot` のレガシー `Animation` で `discovery` を再生する。
+- `discovery` の再生完了を待ってから対象シールを破棄する。
+- 演出中は他シールをめくれないようにし、演出完了後に剥がし操作を再開する。
 
 ## 変更対象
-- [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
-- [Assets/Scripts/Fairy/FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs)
-- [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml)
-- [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss)
-- [Assets/UI/UXML/FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml)
-- [Assets/UI/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/FairyCollectionScreen.uss)
+- [Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs)
+- [Assets/Scripts/Phase/SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs)
+- [Assets/Scripts/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs)
 - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
 
-## 手順1: コレクション用 UXML を作成
-1. [Assets/UI/UXML/FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml) を新規作成する。
-2. ルートは全画面オーバーレイ用 `VisualElement` にする。
-3. その直下に以下の要素を置く。
-- `fairy-collection-backdrop`
-- `fairy-collection-panel`
-- `fairy-collection-title`
-- `fairy-collection-scroll-view`
-- `fairy-collection-empty-label`
-- `fairy-collection-close-button`
-- `fairy-collection-count-label`
-4. 背景はパネルより背面、ただし HUD より前面になるように構成する。
-5. `fairy-collection-scroll-view` は縦スクロール、内容は wrap 配置前提にする。
+## 手順1: 発見演出プレイヤーを追加する
+1. [Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs) を新規作成する。
+2. `MonoBehaviour` として実装し、以下の SerializeField を持たせる。
+- `Animation obiAnimation`
+- `SealPhaseController sealPhaseController`
+- `string clipName = "discovery"`
+3. 実行時の多重再生防止用に `bool isPlaying` を private field で持たせる。
+4. 外部公開 API は `TryPlay(Action onCompleted)` のようにし、成功時だけ `true` を返す形にする。
+5. `obiAnimation == null`、`obiAnimation.GetClip(clipName) == null`、`isPlaying == true` のいずれかなら `false` を返し、必要なら `Debug.LogWarning` を出す。
 
-### UXML 例
-```xml
-<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <Style src="project://database/Assets/UI/USS/FairyCollectionScreen.uss?fileID=7433441132597879392&amp;guid=REPLACE_ME&amp;type=3#FairyCollectionScreen"/>
-    <ui:VisualElement name="fairy-collection-overlay">
-        <ui:Button name="fairy-collection-backdrop" />
-        <ui:VisualElement name="fairy-collection-panel">
-            <ui:Label name="fairy-collection-title" text="妖精一覧" />
-            <ui:Label name="fairy-collection-empty-label" text="妖精が登録されていません" />
-            <ui:ScrollView name="fairy-collection-scroll-view" mode="Vertical" />
-            <ui:VisualElement name="fairy-collection-footer">
-                <ui:Button name="fairy-collection-close-button" text="閉じる" />
-                <ui:Label name="fairy-collection-count-label" text="発見した数: 0/0" />
-            </ui:VisualElement>
-        </ui:VisualElement>
-    </ui:VisualElement>
-</ui:UXML>
-```
-
-## 手順2: コレクション用 USS を作成
-1. [Assets/UI/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/FairyCollectionScreen.uss) を新規作成する。
-2. `fairy-collection-overlay` は全画面ストレッチ、初期状態は非表示にする。
-3. `fairy-collection-backdrop` は半透明グレーで全画面を覆う。
-4. `fairy-collection-panel` はワイヤーに合わせて画面右側に固定する。
-5. スクロールコンテンツは 2 列カードレイアウトになるようにする。
-6. 未獲得画像用 class `fairy-card__image--undiscovered` を用意し、グレースケール相当の見た目にする。
-
-### USS 例
-```css
-#fairy-collection-overlay {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    display: none;
-}
-
-#fairy-collection-backdrop {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    background-color: rgba(128, 128, 128, 0.55);
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
-}
-
-#fairy-collection-panel {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 830px;
-    bottom: 0;
-    padding: 32px;
-    background-color: rgb(217, 217, 217);
-}
-
-#fairy-collection-scroll-view .unity-scroll-view__content-container {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-content: flex-start;
-}
-```
-
-## 手順3: FairyCollectionService に参照 API を追加
-1. [Assets/Scripts/Fairy/FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs) を開く。
-2. `TryRegisterDiscovery` は維持したまま、以下を追加する。
-
+### 実装例
 ```csharp
-public static bool IsDiscovered(string fairyId)
-{
-    return state.Contains(fairyId);
-}
+using System;
+using System.Collections;
+using UnityEngine;
 
-public static int GetDiscoveredCount(IReadOnlyList<FairyDefinition> fairies)
+public sealed class FairyDiscoveryAnimationPlayer : MonoBehaviour
 {
-    if (fairies == null)
-    {
-        return 0;
-    }
+    [SerializeField] private Animation obiAnimation;
+    [SerializeField] private SealPhaseController sealPhaseController;
+    [SerializeField] private string clipName = "discovery";
 
-    int count = 0;
-    foreach (FairyDefinition fairy in fairies)
+    private bool isPlaying;
+
+    public bool TryPlay(Action onCompleted)
     {
-        if (fairy != null && state.Contains(fairy.Id))
+        if (isPlaying)
         {
-            count++;
+            return false;
         }
+
+        if (obiAnimation == null)
+        {
+            Debug.LogWarning("ObiRoot の Animation が未設定です。");
+            return false;
+        }
+
+        AnimationClip clip = obiAnimation.GetClip(clipName);
+        if (clip == null)
+        {
+            Debug.LogWarning($"Animation clip '{clipName}' が見つかりません。");
+            return false;
+        }
+
+        StartCoroutine(PlayRoutine(clip, onCompleted));
+        return true;
     }
 
-    return count;
-}
-```
-
-3. UI 側は `HashSet` を直接触らず、このサービス経由で状態取得する。
-
-## 手順4: HubScreenBinder にコレクション表示制御を追加
-1. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に以下の SerializeField を追加する。
-
-```csharp
-[SerializeField] private FairyCatalogSource fairyCatalogSource;
-[SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
-```
-
-2. 取得済みの `rootVisualElement` に対して `fairyCollectionScreenAsset.CloneTree()` を追加し、オーバーレイ要素参照を確保する。
-3. `fairy-button` の参照を取り、クリックで `OpenFairyCollection()` を呼ぶ。
-4. `fairy-collection-close-button` と `fairy-collection-backdrop` に `CloseFairyCollection()` を接続する。
-5. `OnDisable` で各クリックイベントを解除する。
-
-## 手順5: 一覧構築処理を実装
-1. `HubScreenBinder` に `RefreshFairyCollection()` を追加する。
-2. `fairyCatalogSource.GetFairies()` で全妖精を取得する。
-3. 件数 0 の場合は空表示ラベルを出し、`発見した数: 0/0` をセットする。
-4. 妖精がある場合は `ScrollView.Clear()` のうえでカードを 1 件ずつ追加する。
-5. 獲得済み判定は `FairyCollectionService.IsDiscovered(fairy.Id)` を使う。
-
-### 一覧更新例
-```csharp
-private void OpenFairyCollection()
-{
-    RefreshFairyCollection();
-    fairyCollectionOverlay.style.display = DisplayStyle.Flex;
-}
-
-private void RefreshFairyCollection()
-{
-    IReadOnlyList<FairyDefinition> fairies = fairyCatalogSource != null
-        ? fairyCatalogSource.GetFairies()
-        : null;
-
-    fairyCollectionScrollView.Clear();
-
-    if (fairies == null || fairies.Count == 0)
+    private IEnumerator PlayRoutine(AnimationClip clip, Action onCompleted)
     {
-        fairyCollectionEmptyLabel.style.display = DisplayStyle.Flex;
-        fairyCollectionCountLabel.text = "発見した数: 0/0";
+        isPlaying = true;
+        sealPhaseController?.SetPeelingLocked(true);
+
+        obiAnimation.Stop();
+        obiAnimation.Play(clip.name);
+
+        yield return new WaitForSeconds(clip.length);
+
+        isPlaying = false;
+        sealPhaseController?.SetPeelingLocked(false);
+        onCompleted?.Invoke();
+    }
+}
+```
+
+## 手順2: SealPhaseController に剥がしロックを追加する
+1. [Assets/Scripts/Phase/SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs) を開く。
+2. `private bool isPeelingLocked;` を追加する。
+3. `ApplyPhase` の `SetTapPeelEnabled` 条件を `phase == SealGamePhase.StickerPeeling && !isPeelingLocked` に変更する。
+4. `SetPeelingLocked(bool locked)` を追加し、全アクティブシールへ再適用できるようにする。
+5. 配置フェーズに戻る時や `ClearRemainingStickers()` 実行時に、ロック状態が残留しないよう必要なら `isPeelingLocked = false;` を入れる。
+
+### 実装例
+```csharp
+private bool isPeelingLocked;
+
+public void SetPeelingLocked(bool locked)
+{
+    isPeelingLocked = locked;
+
+    foreach (PeelSticker3D sticker in StickerRuntimeRegistry.GetActiveStickers())
+    {
+        sticker.SetTapPeelEnabled(CurrentPhase == SealGamePhase.StickerPeeling && !isPeelingLocked);
+    }
+}
+
+private void ApplyPhase(SealGamePhase phase)
+{
+    CurrentPhase = phase;
+    tapStickerPlacer.SetPlacementEnabled(phase == SealGamePhase.StickerPlacement);
+
+    foreach (PeelSticker3D sticker in StickerRuntimeRegistry.GetActiveStickers())
+    {
+        sticker.SetTapPeelEnabled(phase == SealGamePhase.StickerPeeling && !isPeelingLocked);
+    }
+
+    eventHub?.NotifyPhaseChanged(CurrentPhase);
+}
+```
+
+## 手順3: PeelSticker3D に演出待ち破棄を組み込む
+1. [Assets/Scripts/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) を開く。
+2. `FairyDiscoveryAnimationPlayer` への参照を保持する方法を決める。
+3. この作業では、SerializeField 追加か `FindAnyObjectByType<FairyDiscoveryAnimationPlayer>()` のどちらか一方に統一する。
+4. `CompletePeel()` の `TryConsumeFairy` 成功後、妖精ありなら `FairyCollectionService.TryRegisterDiscovery` と `FairyDiscoveryLogger.LogDiscovered` を従来どおり先に呼ぶ。
+5. その後 `FairyDiscoveryAnimationPlayer.TryPlay(() => Destroy(gameObject))` を呼ぶ。
+6. `TryPlay` が `false` の場合は、シール残留防止のため `Destroy(gameObject, 0.5f)` へフォールバックする。
+7. 妖精なしの場合は `Destroy(gameObject, 0.5f)` を維持してよい。
+
+### 実装例
+```csharp
+[SerializeField] private FairyDiscoveryAnimationPlayer fairyDiscoveryAnimationPlayer;
+
+private void CompletePeel()
+{
+    if (isPeelComplete)
+    {
         return;
     }
 
-    fairyCollectionEmptyLabel.style.display = DisplayStyle.None;
+    isPeelComplete = true;
+    isAutoPeeling = false;
 
-    foreach (FairyDefinition fairy in fairies)
+    if (!StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment) ||
+        assignment == null ||
+        !assignment.HasFairy)
     {
-        bool isDiscovered = fairy != null && FairyCollectionService.IsDiscovered(fairy.Id);
-        fairyCollectionScrollView.Add(CreateFairyCard(fairy, isDiscovered));
+        Destroy(gameObject, 0.5f);
+        return;
     }
 
-    fairyCollectionCountLabel.text =
-        $"発見した数: {FairyCollectionService.GetDiscoveredCount(fairies)}/{fairies.Count}";
+    if (FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery))
+    {
+        FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
+    }
+
+    if (fairyDiscoveryAnimationPlayer == null ||
+        !fairyDiscoveryAnimationPlayer.TryPlay(() => Destroy(gameObject)))
+    {
+        Destroy(gameObject, 0.5f);
+    }
 }
 ```
 
-## 手順6: カード生成処理を実装
-1. `CreateFairyCard(FairyDefinition fairy, bool isDiscovered)` を `HubScreenBinder` に追加する。
-2. 獲得済み時は以下を表示する。
-- 名前: `fairy.DisplayName`
-- 画像: `fairy.Icon`
-- 補足: `好きなシール: ポップ・小さい`
-3. 未獲得時は以下を表示する。
-- 名前: `*****`
-- 画像: 背景画像ありでもなしでも、未獲得用 class を付与してグレーアウト
-- 補足: `未発見`
-4. パネル本体押下で閉じないよう、カードやパネル側でイベントを背景へ流さない構成にする。
+## 手順4: Main.unity の参照と Animation 設定を更新する
+1. [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を Unity Editor で開く。
+2. `ObiRoot` を選択し、`Animation` コンポーネントの `Play Automatically` をオフにする。
+3. `SealPhaseSystem` など既存フェーズ制御オブジェクトへ `FairyDiscoveryAnimationPlayer` を追加する。
+4. `FairyDiscoveryAnimationPlayer` の `obiAnimation` に `ObiRoot` の `Animation` を割り当てる。
+5. `sealPhaseController` に既存の `SealPhaseController` を割り当てる。
+6. [Assets/Scripts/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) を SerializeField 参照方式にした場合は、対象 prefab またはシーン上オブジェクト側の設定方法を統一する。
 
-### カード生成例
-```csharp
-private VisualElement CreateFairyCard(FairyDefinition fairy, bool isDiscovered)
-{
-    VisualElement card = new();
-    card.AddToClassList("fairy-card");
+## 手順5: 動作確認
+1. Play モードで剥がしフェーズへ入る。
+2. 妖精ありシールをめくり、`discovery` が再生されることを確認する。
+3. `discovery` 再生中は、別シールをタップしてもめくれないことを確認する。
+4. `discovery` 完了後に対象シールが破棄されることを確認する。
+5. 演出完了後、他シールの剥がし操作が再開できることを確認する。
+6. 妖精なしシールでは `discovery` が再生されず、通常どおり破棄されることを確認する。
+7. Console で発見ログが 1 回のみ出ることを確認する。
+8. `obiAnimation` 未設定や `discovery` 未登録の状態を一時的に作り、シール残留せずフォールバック破棄されることを確認する。
 
-    Label nameLabel = new();
-    nameLabel.AddToClassList("fairy-card__name");
-    nameLabel.text = isDiscovered && fairy != null ? fairy.DisplayName : "*****";
-
-    VisualElement image = new();
-    image.AddToClassList("fairy-card__image");
-    if (!isDiscovered)
-    {
-        image.AddToClassList("fairy-card__image--undiscovered");
-    }
-    else if (fairy != null && fairy.Icon != null)
-    {
-        image.style.backgroundImage = new StyleBackground(fairy.Icon.texture);
-    }
-
-    Label detailLabel = new();
-    detailLabel.AddToClassList("fairy-card__detail");
-    detailLabel.text = isDiscovered ? "好きなシール: ポップ・小さい" : "未発見";
-
-    card.Add(nameLabel);
-    card.Add(image);
-    card.Add(detailLabel);
-    return card;
-}
-```
-
-## 手順7: 既存 HUD との共存を調整
-1. [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml) の `fairy-button` はそのまま使う。
-2. 既存 HUD UXML に大きな追加はせず、オーバーレイは binder から差し込む。
-3. [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss) に必要なら `fairy-button` の見た目調整だけ入れる。
-
-## 手順8: シーン参照を設定
-1. [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を開く。
-2. `HubScreenBinder` の Inspector で `fairyCatalogSource` に既存の `FairyCatalogSource` を割り当てる。
-3. `fairyCollectionScreenAsset` に [FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml) を割り当てる。
-4. `UIDocument` の参照が既存どおり接続されていることを確認する。
-
-## 手順9: 動作確認
-1. `妖精` ボタンでコレクション画面が開くことを確認する。
-2. 背景が半透明グレーで全画面を覆うことを確認する。
-3. `閉じる` ボタンと背景押下の両方で閉じることを確認する。
-4. コレクション表示中に背面 HUD やゲーム入力が反応しないことを確認する。
-5. 獲得済み妖精の名前、画像、固定文言が表示されることを確認する。
-6. 未獲得妖精が `*****`、`未発見`、画像グレーアウトで表示されることを確認する。
-7. 一覧が複数件でスクロール動作することを確認する。
-8. 妖精 0 件時に空表示と `発見した数: 0/0` が出ることを確認する。
+## 作業時の注意
+- `WaitForSeconds` は `AnimationClip.length` を使い、固定秒数を書かない。
+- `SetPeelingLocked(false)` を演出完了時にしか呼ばないと、例外時にロック残留する可能性がある。必要なら `try/finally` 相当の後始末を入れる。
+- `SealPhaseController` 側で入力再適用するときは、必ず現在フェーズを見て配置フェーズで誤有効化しない。
+- `PeelSticker3D` の `isPeelComplete` を維持し、演出待ち中に `CompletePeel()` が再実行されないようにする。

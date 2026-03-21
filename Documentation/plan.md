@@ -1,166 +1,165 @@
-# 妖精コレクション画面 実装計画
+# 妖精発見演出再生 実装計画
 
 ## 実装方針
-- 既存 HUD は [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml) と [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss) と [HubScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) で構成されているため、HUD 本体は維持しつつ、妖精コレクション部分だけを別 UXML / USS に分離する。
-- 新規 UXML は HUD と同じ `UIDocument` 配下へ `VisualTreeAsset` として差し込み、表示制御は既存 `HubScreenBinder` に集約する。これによりシーン上の `UIDocument` 追加やバインダ増殖を避け、既存フェーズ UI との接続点を 1 箇所に保つ。
-- 妖精一覧のデータソースは [FairyCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogSource.cs) の全件一覧と [FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs) の獲得状態を組み合わせる。
-- 未獲得表示は「画像部分グレーアウト」「名前は `*****`」「補足文言は `未発見`」で固定し、好きなシール文言は獲得済み時のみ固定文言 `好きなシール: ポップ・小さい` を表示する。
-- コレクション画面表示中は全画面背景オーバーレイで背面入力を遮断し、閉じるボタンと背景押下の両方で閉じられるようにする。
+- 既存の妖精発見判定は [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) 内の `CompletePeel()` で完結しているため、妖精判定の責務は維持しつつ、「発見演出再生」と「演出中入力ロック」は別コンポーネントへ分離する。
+- `ObiRoot` は [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) 上で `Animation` を持っているため、実装では名前検索を使わず、`Animation` 参照を Inspector から注入する。
+- レガシー `Animation` の `discovery` 再生は、専用の `FairyDiscoveryAnimationPlayer` が担当する。`PeelSticker3D` からは「妖精発見時に演出を再生して完了通知を受ける」だけにし、`AnimationState.length` ベースで待機する。
+- 演出中の剥がし禁止は [SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs) を制御の単一点にする。発見演出開始時に全アクティブシールの `SetTapPeelEnabled(false)` を再適用し、完了後に現在フェーズが `StickerPeeling` の場合のみ復帰する。
+- `ObiRoot.Animation` のオート再生は無効化し、`discovery` はスクリプト起点でのみ再生される状態にする。
+- 再生失敗時はシール残留を避けるため、警告ログを出しつつ演出待ちをスキップして通常破棄へフォールバックする。
 
 ## 変更対象ファイル一覧
 
 ### 更新予定
-- [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
-  - `fairy-button` の押下ハンドラを追加する。
-  - 新規コレクション UXML を `rootVisualElement` に差し込み、表示 / 非表示を管理する。
-  - 妖精一覧カード生成、発見数表示、背景押下で閉じる処理を追加する。
-  - オーバーレイ表示中のフェーズ操作や既存 HUD ボタンとの競合を防ぐ。
-- [Assets/Scripts/Fairy/FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs)
-  - UI から参照するための読み取り API を追加する。
-  - 追加候補は `IsDiscovered(string fairyId)`、`GetDiscoveredCount(IReadOnlyList<FairyDefinition> fairies)`。
-- [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml)
-  - `fairy-button` は維持しつつ、新規コレクション UXML をバインダから注入しやすい構成で使い続ける。
-  - 必要ならテンプレート参照用の最小追加のみ行う。
-- [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss)
-  - HUD 本体レイアウトを維持しつつ、コレクション表示中も見た目崩れが出ないようにする。
-  - 必要に応じて `fairy-button` の状態制御クラスだけ追加する。
+- [Assets/Scripts/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs)
+  - `CompletePeel()` を即時破棄から「通常破棄」または「発見演出完了後破棄」へ分岐させる。
+  - 重複完了防止は維持しつつ、妖精あり時に `FairyDiscoveryAnimationPlayer` へ再生要求する。
+  - 演出中に自身の追加入力が再開しないよう状態を明示する。
+- [Assets/Scripts/Phase/SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs)
+  - 発見演出のロック開始 / 解除 API を追加する。
+  - 現在フェーズと演出ロック状態の両方を見て `SetTapPeelEnabled` を制御する。
+  - 配置フェーズ復帰時や全削除時にロック状態を安全に解除する。
 - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
-  - `HubScreenBinder` に新規 `VisualTreeAsset`、必要なら `StyleSheet`、`FairyCatalogSource` 参照を割り当てる。
+  - `ObiRoot` の `Animation` で `Play Automatically` を無効化する。
+  - 新規 `FairyDiscoveryAnimationPlayer` を適切な GameObject に追加し、`ObiRoot` の `Animation` と `SealPhaseController` を割り当てる。
 
 ### 新規作成予定
-- [Assets/UI/UXML/FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml)
-  - 全画面背景オーバーレイ、右側パネル、タイトル、スクロール領域、閉じるボタン、発見数ラベルを持つ。
-- [Assets/UI/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/FairyCollectionScreen.uss)
-  - ワイヤー準拠の半透明背景、右側パネル、2 列カードレイアウト、グレーアウト表現を定義する。
+- [Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs)
+  - `Animation` と `SealPhaseController` の参照を保持する。
+  - `PlayDiscoveryAndNotify(Action onCompleted)` または同等 API で `discovery` を再生し、クリップ長ぶん待機して完了コールバックを返す。
+  - 再生中フラグを持ち、重複再生要求を拒否または無視する。
 
 ## データフロー / 処理フロー
-1. シーン開始時、`HubScreenBinder` が HUD の `rootVisualElement` を取得する。
-2. `HubScreenBinder` は Inspector で受けた `VisualTreeAsset` から `FairyCollectionScreen.uxml` を複製し、HUD ルートへ追加する。
-3. コレクションオーバーレイ内の `close-button`、背景要素、スクロール領域、発見数ラベルを `Q()` で取得する。
-4. プレイヤーが `fairy-button` を押すと、`FairyCatalogSource.GetFairies()` から全妖精一覧を取得する。
-5. `HubScreenBinder` は各 `FairyDefinition` について `FairyCollectionService.IsDiscovered(fairy.Id)` を呼び、カード表示内容を決める。
-6. 獲得済みなら `DisplayName`、`Icon`、固定文言 `好きなシール: ポップ・小さい` を表示する。
-7. 未獲得なら名前を `*****`、補足文言を `未発見`、画像領域にグレーアウト用 class を付与する。
-8. カードを 2 列グリッドとして `ScrollView` に追加する。
-9. `FairyCollectionService.GetDiscoveredCount(fairies)` と `fairies.Count` から `発見した数: X/Y` を更新する。
-10. オーバーレイ表示中は背景要素が pointer を受け、背面 HUD / ゲーム入力を遮断する。
-11. `閉じる` ボタンまたは背景押下でオーバーレイを非表示にする。
+1. プレイヤーが剥がしフェーズ中のシールをタップする。
+2. [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) が自動めくりを完了し、`StickerRuntimeRegistry.TryConsumeFairy` で妖精割り当てを確定取得する。
+3. 妖精なしなら従来どおり完了処理を終え、短時間後にシールを破棄する。
+4. 妖精ありなら `FairyCollectionService.TryRegisterDiscovery` と `FairyDiscoveryLogger.LogDiscovered` を先に 1 回だけ実行する。
+5. その後 `FairyDiscoveryAnimationPlayer` に `discovery` 再生を依頼する。
+6. `FairyDiscoveryAnimationPlayer` は `SealPhaseController` に演出ロック開始を通知し、全シールの剥がし入力を停止する。
+7. `FairyDiscoveryAnimationPlayer` は `ObiRoot.Animation.Play("discovery")` を実行し、該当クリップ長を基準に待機する。
+8. 待機完了後、`PeelSticker3D` 側へ完了通知を返し、対象シールを破棄する。
+9. `FairyDiscoveryAnimationPlayer` は `SealPhaseController` に演出ロック解除を通知し、現在フェーズが `StickerPeeling` の場合のみ剥がし入力を再開する。
+10. `Animation` 未設定や `discovery` 未登録なら、警告を出してロックなしで破棄へフォールバックする。
 
 ## 処理詳細
 
-### UI 構造
-- `FairyCollectionScreen.uxml` は少なくとも以下の要素を持つ。
-- `fairy-collection-overlay`
-- `fairy-collection-backdrop`
-- `fairy-collection-panel`
-- `fairy-collection-title`
-- `fairy-collection-scroll-view`
-- `fairy-collection-empty-label`
-- `fairy-collection-close-button`
-- `fairy-collection-count-label`
-- カード生成は UXML 静的定義ではなく、`HubScreenBinder` から `VisualElement` / `Label` / `Button` を組み立てる形でよい。現状のカード情報量なら専用 item UXML までは不要。
+### 発見演出再生コンポーネント
+- `FairyDiscoveryAnimationPlayer` は `MonoBehaviour` とし、以下の SerializeField を持つ。
+- `Animation obiAnimation`
+- `SealPhaseController sealPhaseController`
+- `string clipName = "discovery"`
+- `bool isPlaying`
+- API は `bool TryPlay(System.Action onCompleted)` のような単純な形にする。
+- `TryPlay` 内で前提チェックを行い、失敗時は `false` を返す。
+- 成功時は coroutine を開始し、完了後に `onCompleted` を実行する。
 
-### バインド設計
-- `HubScreenBinder` に以下の SerializeField を追加する。
-- `VisualTreeAsset fairyCollectionScreenAsset`
-- `FairyCatalogSource fairyCatalogSource`
-- 既存 `uiDocument` と同じライフサイクルで初期化し、`OnEnable` でオーバーレイ生成、`OnDisable` でイベント解除を行う。
-- オーバーレイが未設定でも NullReference で落ちないよう、防御コードを入れる。
+### 剥がし完了処理の変更
+- `PeelSticker3D.CompletePeel()` は以下の順序に整理する。
+- `isPeelComplete = true`
+- `StickerRuntimeRegistry.TryConsumeFairy(...)`
+- 妖精登録とログ出力
+- 妖精ありなら `FairyDiscoveryAnimationPlayer.TryPlay(...)`
+- 再生開始できた場合はコールバック内で `Destroy(gameObject)` を実行
+- 再生できなかった場合は即フォールバック破棄
+- 妖精なしは既存どおり短時間後の破棄でよい
 
-### 状態参照 API
-- `FairyCollectionService` は登録 API に加えて参照 API を持つ。
-- `bool IsDiscovered(string fairyId)`
-- `int GetDiscoveredCount(IReadOnlyList<FairyDefinition> fairies)`
-- 集計時は null 要素や空 ID を除外し、UI 側が重複した条件分岐を持たないようにする。
+### 入力ロック制御
+- `SealPhaseController` に `SetPeelingLocked(bool locked)` または同等 API を追加する。
+- `ApplyPhase` は `CurrentPhase == StickerPeeling && !isPeelingLocked` のときだけアクティブシールへ `SetTapPeelEnabled(true)` を適用する。
+- 演出中に新規生成されるシールはない前提だが、復帰時は `StickerRuntimeRegistry.GetActiveStickers()` を再列挙して一括再適用する。
+- 配置フェーズでは常に剥がし入力は無効のため、ロック解除時に誤って有効化しないよう現在フェーズ判定を通す。
 
-### カード見た目
-- 獲得済みカードは通常色で、画像は `StyleBackground` に `fairy.Icon.texture` を設定する。
-- 未獲得カードはカード全体を消さず、画像枠だけに `fairy-card__image--undiscovered` の class を付ける。
-- アイコン未設定時は背景画像なしでも崩れないプレースホルダー見た目にする。
-- 補足文言は獲得済み時のみ `好きなシール: ポップ・小さい`、未獲得時は `未発見` を表示する。
-
-### 入力制御
-- 背景オーバーレイは `PickingMode.Position` を有効にして最前面でクリックを受ける。
-- 背景押下時は閉じるが、パネル本体押下では閉じないようイベント伝播を抑制する。
-- コレクション表示中に `ready-button` や `shop-button` が押されないことを前提に、背景が全画面を覆う構造にする。
+### シーン設定
+- [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) の `ObiRoot.Animation` で `m_PlayAutomatically: 0` に変更する。
+- `FairyDiscoveryAnimationPlayer` は `SealPhaseSystem` または既存のフェーズ関連 GameObject へ追加し、Inspector で `ObiRoot.Animation` と `SealPhaseController` を接続する。
+- `PeelSticker3D` から参照するため、`FairyDiscoveryAnimationPlayer` はシーン上の単一インスタンスとして扱う。参照方法は `SealPhaseController` 経由または Inspector 注入先を増やす形で統一する。
 
 ## リスクと対策
-- `HubScreenBinder` に一覧生成まで集約すると責務が増える。
-  - 今回は 1 画面のみで関連度が高いため binder 集約で進めるが、将来詳細画面やフィルタが増えたら `FairyCollectionPanelController` へ分離する。
-- `FairyCollectionService` が登録専用 API のままだと UI が内部状態へ直接触れたくなる。
-  - 参照 API を追加し、UI はサービス経由でのみ獲得状態を知るようにする。
-- 背景押下で閉じる実装時にパネル内クリックまで閉じる可能性がある。
-  - パネル本体で click / pointer イベントを握りつぶし、背景だけで close を発火させる。
-- 一覧件数増加時にカードサイズが崩れる可能性がある。
-  - ScrollView の content を wrap レイアウトにし、カード幅を固定して 2 列を維持する。
+- `PeelSticker3D` からシーン上の演出プレイヤーへ直接依存すると参照設定漏れで再生失敗しやすい。
+  - `FairyDiscoveryAnimationPlayer` は Inspector 必須参照を持たせ、`Awake` で不足時に明示ログを出す。
+- 演出中に `SealPhaseController` が別経路でフェーズ切替されると、入力復帰条件が崩れる可能性がある。
+  - ロック解除時に常に `CurrentPhase` を参照して `StickerPeeling` 時のみ再有効化する。
+- `Animation.Play("discovery")` が失敗した場合にシールが残留する可能性がある。
+  - `TryPlay` が失敗したら待機せず破棄へ進む。
+- `AnimationState.length` の取得に失敗すると待機時間が不正になる可能性がある。
+  - クリップ取得失敗は再生失敗扱いにしてフォールバックする。
 
 ## 検証方針
 - 手動確認1:
-  - `妖精` ボタン押下で半透明背景付きのコレクション画面が開くこと。
+  - 妖精ありシールをめくると `ObiRoot` の `discovery` が 1 回再生されること。
 - 手動確認2:
-  - `閉じる` ボタンと背景押下の両方で閉じること。
+  - `discovery` 再生完了前は対象シールが残り、完了後に破棄されること。
 - 手動確認3:
-  - 表示中に `ready-button`、`shop-button`、ゲーム画面の入力が反応しないこと。
+  - 妖精なしシールをめくっても `discovery` は再生されず、通常どおり破棄されること。
 - 手動確認4:
-  - 獲得済み妖精は名前、画像、固定文言が表示されること。
+  - `discovery` 再生中は他シールをタップしてもめくり開始しないこと。
 - 手動確認5:
-  - 未獲得妖精は名前が `*****`、補足文言が `未発見`、画像がグレーアウトになること。
+  - 演出完了後、剥がしフェーズ中なら他シールの剥がし操作が再開できること。
 - 手動確認6:
-  - 妖精件数が増えてもスクロールで最後まで閲覧できること。
+  - `ObiRoot` 参照未設定または `discovery` 未登録時でも、シールが残留せず破棄されること。
 - 手動確認7:
-  - 妖精 0 件のときに空表示と `発見した数: 0/0` が出ること。
+  - 妖精登録と発見ログが 1 回のみ実行され、重複しないこと。
 
 ## コードスニペット
 ```csharp
-[SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
-[SerializeField] private FairyCatalogSource fairyCatalogSource;
-
-private VisualElement fairyCollectionOverlay;
-private VisualElement fairyCollectionBackdrop;
-private VisualElement fairyCollectionPanel;
-private ScrollView fairyCollectionScrollView;
-private Label fairyCollectionCountLabel;
-private Label fairyCollectionEmptyLabel;
-private Button fairyButton;
-private Button fairyCollectionCloseButton;
-```
-
-```csharp
-private void RefreshFairyCollection()
+public sealed class FairyDiscoveryAnimationPlayer : MonoBehaviour
 {
-    IReadOnlyList<FairyDefinition> fairies = fairyCatalogSource != null
-        ? fairyCatalogSource.GetFairies()
-        : null;
+    [SerializeField] private Animation obiAnimation;
+    [SerializeField] private SealPhaseController sealPhaseController;
+    [SerializeField] private string clipName = "discovery";
 
-    fairyCollectionScrollView.Clear();
+    private bool isPlaying;
 
-    if (fairies == null || fairies.Count == 0)
+    public bool TryPlay(System.Action onCompleted)
     {
-        fairyCollectionEmptyLabel.style.display = DisplayStyle.Flex;
-        fairyCollectionCountLabel.text = "発見した数: 0/0";
-        return;
-    }
+        if (isPlaying || obiAnimation == null || obiAnimation.GetClip(clipName) == null)
+        {
+            return false;
+        }
 
-    fairyCollectionEmptyLabel.style.display = DisplayStyle.None;
-    foreach (FairyDefinition fairy in fairies)
-    {
-        bool isDiscovered = fairy != null && FairyCollectionService.IsDiscovered(fairy.Id);
-        fairyCollectionScrollView.Add(CreateFairyCard(fairy, isDiscovered));
+        StartCoroutine(PlayRoutine(onCompleted));
+        return true;
     }
-
-    fairyCollectionCountLabel.text =
-        $"発見した数: {FairyCollectionService.GetDiscoveredCount(fairies)}/{fairies.Count}";
 }
 ```
 
 ```csharp
-private void CloseFairyCollection()
+private void CompletePeel()
 {
-    if (fairyCollectionOverlay == null)
+    if (isPeelComplete)
     {
         return;
     }
 
-    fairyCollectionOverlay.style.display = DisplayStyle.None;
+    isPeelComplete = true;
+    isAutoPeeling = false;
+
+    if (!StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment) ||
+        assignment == null ||
+        !assignment.HasFairy)
+    {
+        Destroy(gameObject, 0.5f);
+        return;
+    }
+
+    FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery);
+    FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
+
+    if (!fairyDiscoveryAnimationPlayer.TryPlay(() => Destroy(gameObject)))
+    {
+        Destroy(gameObject, 0.5f);
+    }
+}
+```
+
+```csharp
+public void SetPeelingLocked(bool locked)
+{
+    isPeelingLocked = locked;
+
+    foreach (PeelSticker3D sticker in StickerRuntimeRegistry.GetActiveStickers())
+    {
+        sticker.SetTapPeelEnabled(CurrentPhase == SealGamePhase.StickerPeeling && !isPeelingLocked);
+    }
 }
 ```
