@@ -5,10 +5,10 @@ using System.Collections.Generic;
 /// </summary>
 public static class StickerRuntimeRegistry
 {
-    private static readonly Dictionary<int, bool> fairyByStickerId = new();
+    private static readonly Dictionary<int, StickerFairyAssignment> assignmentByStickerId = new();
     private static readonly Dictionary<int, PeelSticker3D> stickerById = new();
 
-    public static void Register(PeelSticker3D sticker, bool hasFairy)
+    public static void Register(PeelSticker3D sticker, StickerFairyAssignment assignment)
     {
         if (sticker == null)
         {
@@ -16,26 +16,33 @@ public static class StickerRuntimeRegistry
         }
 
         int key = sticker.GetInstanceID();
-        fairyByStickerId[key] = hasFairy;
         stickerById[key] = sticker;
+
+        if(assignment != null && assignment.HasFairy)
+        {
+            assignmentByStickerId[key] = assignment;
+            return;
+        }
+
+        assignmentByStickerId.Remove(key);
     }
 
-    public static bool TryConsumeFairy(PeelSticker3D sticker, out bool hasFairy)
+    public static bool TryConsumeFairy(PeelSticker3D sticker, out StickerFairyAssignment assignment)
     {
-        hasFairy = false;
+        assignment = null;
         if (sticker == null)
         {
             return false;
         }
 
         int key = sticker.GetInstanceID();
-        if (!fairyByStickerId.TryGetValue(key, out hasFairy))
+        if (!assignmentByStickerId.TryGetValue(key, out assignment))
         {
             return false;
         }
 
-        fairyByStickerId.Remove(key);
-        return true;
+        assignmentByStickerId.Remove(key);
+        return assignment != null && assignment.HasFairy;
     }
 
     public static IReadOnlyCollection<PeelSticker3D> GetActiveStickers()
@@ -60,13 +67,13 @@ public static class StickerRuntimeRegistry
         }
 
         int key = sticker.GetInstanceID();
-        fairyByStickerId.Remove(key);
+        assignmentByStickerId.Remove(key);
         stickerById.Remove(key);
     }
 
     public static void ClearAll()
     {
-        fairyByStickerId.Clear();
+        assignmentByStickerId.Clear();
         stickerById.Clear();
     }
 }

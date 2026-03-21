@@ -210,9 +210,9 @@ public sealed class PeelSticker3D : MonoBehaviour
         isPeelComplete = true;
         isAutoPeeling = false;
 
-        if (StickerRuntimeRegistry.TryConsumeFairy(this, out bool hasFairy) && hasFairy)
+        if(StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment) && assignment != null && assignment.HasFairy && FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery))
         {
-            Debug.Log("妖精を発見！");
+            FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
         }
 
         Destroy(gameObject, 0.5f);

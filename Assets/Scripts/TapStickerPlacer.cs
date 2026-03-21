@@ -11,6 +11,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
     private Camera cachedCamera;
     [SerializeField] private PeelSticker3D templateSticker;
+    [SerializeField] private FairyCatalogSource fairyCatalogSource;
     private PeelSticker3D templateSourceSticker;
     private StickerSelectionState selectionState;
 
@@ -172,10 +173,16 @@ public sealed class TapStickerPlacer : MonoBehaviour
         sticker.PeelAmount = 0f;
         sticker.SetTapPeelEnabled(false);
 
-        bool hasFairy = Random.value < 0.5f;
-        StickerRuntimeRegistry.Register(sticker, hasFairy);
+        bool shouldAssignFairy = Random.value < 0.5f;
+        FairyDefinition selectedFairy = shouldAssignFairy
+            ? FairyWeightedRandomSelector.Select(fairyCatalogSource.GetFairies())
+            : null;
 
-        if (hasFairy)
+        StickerFairyAssignment assignment = selectedFairy != null ? new StickerFairyAssignment(selectedFairy) : null;
+
+        StickerRuntimeRegistry.Register(sticker, assignment);
+
+        if (assignment != null && assignment.HasFairy)
         {
             AttachFairyEffect(sticker);
         }
