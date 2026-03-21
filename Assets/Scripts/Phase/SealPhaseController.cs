@@ -16,6 +16,11 @@ public sealed class SealPhaseController : MonoBehaviour
         SubscribeToEventHub();
     }
 
+    public void SetSelectionState(StickerSelectionState selectionState)
+    {
+        tapStickerPlacer.SetSelectionState(selectionState);
+    }
+
     private void OnEnable()
     {
         SubscribeToEventHub();

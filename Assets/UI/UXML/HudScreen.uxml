@@ -7,6 +7,12 @@
             </ui:VisualElement>
             <ui:Button name="ready-button" text="シールめくりへ"/>
         </ui:VisualElement>
+        <!-- TODO シールが無い時の表記を追加する-->
+        <ui:VisualElement name="bottom-left-sticker-panel">
+            <ui:Label name="sticker-list-title" text="シール一覧" />
+            <ui:Label name="empty-sticker-list-label" text="所持シールがありません" />
+            <ui:ScrollView name="sticker-scroll-view" mode="Vertical" />
+        </ui:VisualElement>
         <ui:VisualElement name="bottom-right-menu">
             <ui:Button name="fairy-button" text="妖精"/>
             <ui:Button name="shop-button" text="ショップ"/>

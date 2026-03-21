@@ -9,6 +9,7 @@ public sealed class SealPhaseBoostrap : MonoBehaviour
     {
         SealPhaseEventHub eventHub = new();
         hubScreenBinder.Initialize(eventHub);
+        sealPhaseController.SetSelectionState(hubScreenBinder.SelectionState);
         sealPhaseController.Initialize(eventHub);
     }
 }

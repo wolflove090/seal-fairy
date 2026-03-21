@@ -1,5 +1,6 @@
 //using System.Numerics;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 [DisallowMultipleComponent]
 public sealed class TapStickerPlacer : MonoBehaviour
@@ -10,12 +11,19 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
     private Camera cachedCamera;
     [SerializeField] private PeelSticker3D templateSticker;
+    private PeelSticker3D templateSourceSticker;
+    private StickerSelectionState selectionState;
 
     private bool isPlacementEnabled = true;
 
     public void SetPlacementEnabled(bool enabled)
     {
         isPlacementEnabled = enabled;
+    }
+
+    public void SetSelectionState(StickerSelectionState selectionState)
+    {
+        this.selectionState = selectionState;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -39,6 +47,16 @@ public sealed class TapStickerPlacer : MonoBehaviour
     private void Update()
     {
         if (!Application.isPlaying || !isPlacementEnabled)
+        {
+            return;
+        }
+
+        if (selectionState?.SelectedSticker == null)
+        {
+            return;
+        }
+
+        if(IsPointerOverUi())
         {
             return;
         }
@@ -94,35 +112,35 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
     private void CacheTemplateSticker()
     {
+        PeelSticker3D selectedStickerPrefab = selectionState?.SelectedSticker?.StickerPrefab;
+        if (selectedStickerPrefab == null)
+        {
+            templateSourceSticker = null;
+
+            if (templateSticker != null)
+            {
+                Destroy(templateSticker.gameObject);
+                templateSticker = null;
+            }
+
+            return;
+        }
+
+        if (templateSourceSticker == selectedStickerPrefab && templateSticker != null)
+        {
+            return;
+        }
+
         if (templateSticker != null)
         {
-            return;
+            Destroy(templateSticker.gameObject);
         }
 
-        PeelSticker3D sourceSticker = FindTemplateSource();
-        if (sourceSticker == null)
-        {
-            return;
-        }
-
-        templateSticker = Instantiate(sourceSticker, transform);
+        templateSourceSticker = selectedStickerPrefab;
+        templateSticker = Instantiate(selectedStickerPrefab, transform);
         templateSticker.name = "Sticker Template";
         templateSticker.gameObject.SetActive(false);
         templateSticker.PeelAmount = 0f;
-    }
-
-    private PeelSticker3D FindTemplateSource()
-    {
-        PeelSticker3D[] stickers = FindObjectsByType<PeelSticker3D>(FindObjectsSortMode.None);
-        foreach (PeelSticker3D sticker in stickers)
-        {
-            if (sticker != null && sticker.gameObject.activeInHierarchy && sticker.gameObject != gameObject)
-            {
-                return sticker;
-            }
-        }
-
-        return null;
     }
 
     private bool IsPointerOverSticker(Camera activeCamera, Vector3 screenPoint)
@@ -194,6 +212,21 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
         screenPoint = default;
         return false;
+    }
+
+    private static bool IsPointerOverUi()
+    {
+        if (EventSystem.current == null)
+        {
+            return false;
+        }
+
+        if (Input.touchCount > 0)
+        {
+            return EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
+        }
+
+        return EventSystem.current.IsPointerOverGameObject();
     }
 
     private static void AttachFairyEffect(PeelSticker3D sticker)
