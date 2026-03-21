@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public static class FairyCollectionService
@@ -19,5 +20,27 @@ public static class FairyCollectionService
 
         isNewDiscovery = state.TryAdd(fairy.Id);
         return true;
+    }
+
+    public static bool IsDiscovered(string fairyId)
+    {
+        return state.Contains(fairyId);
+    }
+
+    public static int GetDiscoveredCount(IReadOnlyList<FairyDefinition> fairies)
+    {
+        if(fairies == null)
+            return 0;
+
+        int count = 0;
+        foreach(FairyDefinition fairy in fairies)
+        {
+            if(fairy != null && state.Contains(fairy.Id))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 }

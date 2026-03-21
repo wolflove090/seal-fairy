@@ -1,5 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <Style src="project://database/Assets/UI/USS/HudScreen.uss?fileID=7433441132597879392&amp;guid=ad002d659f68a4d8b9b8dd04a89e37e3&amp;type=3#HudScreen"/>
+    <Style src="project://database/Assets/UI/HubScreen/USS/HudScreen.uss?fileID=7433441132597879392&amp;guid=ad002d659f68a4d8b9b8dd04a89e37e3&amp;type=3#HudScreen"/>
     <ui:VisualElement name="root">
         <ui:VisualElement name="top-bar">
             <ui:VisualElement name="money-panel">

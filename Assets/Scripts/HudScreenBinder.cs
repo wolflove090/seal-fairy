@@ -6,15 +6,25 @@ public sealed class HubScreenBinder : MonoBehaviour
 {
     [SerializeField] private UIDocument uiDocument;
     [SerializeField] private OwnedStickerInventorySource inventorySource;
-    
+    [SerializeField] private FairyCatalogSource fairyCatalogSource;
+    [SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
+
     private readonly StickerSelectionState selectionState = new();
     private readonly Dictionary<OwnedStickerDefinition, VisualElement> stickerCellByDefinition = new();
 
     private SealPhaseEventHub eventHub;
     private Button readyButton;
+    private Button fairyButton;
     private VisualElement stickerPanel;
     private ScrollView stickerScrollView;
     private Label emptyStickerListLabel;
+    private VisualElement fairyCollectionOverlay;
+    private Button fairyCollectionBackdrop;
+    private VisualElement fairyCollectionPanel;
+    private ScrollView fairyCollectionScrollView;
+    private Label fairyCollectionEmptyLabel;
+    private Label fairyCollectionCountLabel;
+    private Button fairyCollectionCloseButton;
     private bool isSubscribed;
     private bool hasAppliedInitialSelection;
     private SealGamePhase currentPhase = SealGamePhase.StickerPlacement;
@@ -33,6 +43,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     {
         VisualElement root = uiDocument.rootVisualElement;
         readyButton = root.Q<Button>("ready-button");
+        fairyButton = root.Q<Button>("fairy-button");
         stickerPanel = root.Q<VisualElement>("bottom-left-sticker-panel");
         stickerScrollView = root.Q<ScrollView>("sticker-scroll-view");
         emptyStickerListLabel = root.Q<Label>("empty-sticker-list-label");
@@ -49,7 +60,24 @@ public sealed class HubScreenBinder : MonoBehaviour
             return;
         }
 
+        InitializeFairyCollectionUi(root);
+
         readyButton.clicked += HandleReadyButtonClicked;
+        if (fairyButton != null)
+        {
+            fairyButton.clicked += OpenFairyCollection;
+        }
+
+        if (fairyCollectionCloseButton != null)
+        {
+            fairyCollectionCloseButton.clicked += CloseFairyCollection;
+        }
+
+        if (fairyCollectionBackdrop != null)
+        {
+            fairyCollectionBackdrop.clicked += CloseFairyCollection;
+        }
+
         BuildStickerList();
         UpdateReadyButtonLabel();
         UpdateStickerPanelVisibility();
@@ -63,7 +91,58 @@ public sealed class HubScreenBinder : MonoBehaviour
             readyButton.clicked -= HandleReadyButtonClicked;
         }
 
+        if (fairyButton != null)
+        {
+            fairyButton.clicked -= OpenFairyCollection;
+        }
+
+        if (fairyCollectionCloseButton != null)
+        {
+            fairyCollectionCloseButton.clicked -= CloseFairyCollection;
+        }
+
+        if (fairyCollectionBackdrop != null)
+        {
+            fairyCollectionBackdrop.clicked -= CloseFairyCollection;
+        }
+
         UnsubscribeFromEventHub();
+    }
+
+    private void InitializeFairyCollectionUi(VisualElement root)
+    {
+        if (root == null || fairyCollectionScreenAsset == null)
+        {
+            return;
+        }
+
+        fairyCollectionOverlay = root.Q<VisualElement>("fairy-collection-overlay");
+        if (fairyCollectionOverlay == null)
+        {
+            fairyCollectionScreenAsset.CloneTree(root);
+            fairyCollectionOverlay = root.Q<VisualElement>("fairy-collection-overlay");
+        }
+
+        fairyCollectionBackdrop = root.Q<Button>("fairy-collection-backdrop");
+        fairyCollectionPanel = root.Q<VisualElement>("fairy-collection-panel");
+        fairyCollectionScrollView = root.Q<ScrollView>("fairy-collection-scroll-view");
+        fairyCollectionEmptyLabel = root.Q<Label>("fairy-collection-empty-label");
+        fairyCollectionCountLabel = root.Q<Label>("fairy-collection-count-label");
+        fairyCollectionCloseButton = root.Q<Button>("fairy-collection-close-button");
+
+        if (fairyCollectionOverlay == null ||
+            fairyCollectionBackdrop == null ||
+            fairyCollectionPanel == null ||
+            fairyCollectionScrollView == null ||
+            fairyCollectionEmptyLabel == null ||
+            fairyCollectionCountLabel == null ||
+            fairyCollectionCloseButton == null)
+        {
+            Debug.LogError("妖精コレクション UI の初期化に失敗しました");
+            return;
+        }
+
+        fairyCollectionOverlay.style.display = DisplayStyle.None;
     }
 
     private void BuildStickerList()
@@ -172,6 +251,86 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         readyButton.text = currentPhase == SealGamePhase.StickerPlacement ? "シールめくりへ" : "シール配置へ";
+    }
+
+    private void OpenFairyCollection()
+    {
+        if (fairyCollectionOverlay == null || fairyCollectionScrollView == null)
+        {
+            return;
+        }
+
+        RefreshFairyCollection();
+        fairyCollectionOverlay.style.display = DisplayStyle.Flex;
+    }
+
+    private void CloseFairyCollection()
+    {
+        if (fairyCollectionOverlay == null)
+        {
+            return;
+        }
+
+        fairyCollectionOverlay.style.display = DisplayStyle.None;
+    }
+
+    private void RefreshFairyCollection()
+    {
+        if (fairyCollectionScrollView == null || fairyCollectionEmptyLabel == null || fairyCollectionCountLabel == null)
+        {
+            return;
+        }
+
+        IReadOnlyList<FairyDefinition> fairies = fairyCatalogSource != null ? fairyCatalogSource.GetFairies() : null;
+
+        fairyCollectionScrollView.Clear();
+
+        if(fairies == null || fairies.Count == 0)
+        {
+            fairyCollectionEmptyLabel.style.display = DisplayStyle.Flex;
+            fairyCollectionCountLabel.text = "発見した数: 0/0";
+            return;
+        }
+
+        fairyCollectionEmptyLabel.style.display = DisplayStyle.None;
+
+        foreach(FairyDefinition fairy in fairies)
+        {
+            bool isDiscovered = fairy != null && FairyCollectionService.IsDiscovered(fairy.Id);
+            fairyCollectionScrollView.Add(CreateFairyCard(fairy, isDiscovered));
+        }
+
+        fairyCollectionCountLabel.text = $"発見した数: {FairyCollectionService.GetDiscoveredCount(fairies)}/{fairies.Count}";
+    }
+
+    private VisualElement CreateFairyCard(FairyDefinition fairy, bool isDiscovered)
+    {
+        VisualElement card = new();
+        card.AddToClassList("fairy-card");
+
+        Label nameLabel = new();
+        nameLabel.AddToClassList("fairy-card__name");
+        nameLabel.text = isDiscovered && fairy != null ? fairy.DisplayName : "？？？";
+
+        VisualElement image = new();
+        image.AddToClassList("fairy-card__image");
+        if(!isDiscovered)
+        {
+            image.AddToClassList("fairy-card__image--undiscovered");
+        }
+        else if(fairy != null && fairy.Icon != null)
+        {
+            image.style.backgroundImage = new StyleBackground(fairy.Icon.texture);
+        }
+
+        Label detailLabel = new();
+        detailLabel.AddToClassList("fairy-card__detail");
+        detailLabel.text = isDiscovered ? "好きなシール: ポップ・小さい\n妖精の説明" : "好きなシール: ポップ・小さい\n未発見";
+
+        card.Add(nameLabel);
+        card.Add(image);
+        card.Add(detailLabel);
+        return card;
     }
 
     private void SubscribeToEventHub()
