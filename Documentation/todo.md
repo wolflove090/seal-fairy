@@ -1,14 +1,12 @@
-# 妖精コレクション機能 ToDo
+# 妖精コレクション画面 ToDo
 
-- `Assets/Scripts/Fairy/FairyDefinition.cs` を追加し、`id`、`displayName`、`weight` を持つ妖精定義データを作成する。
-- `Assets/Scripts/Fairy/FairyCatalogSource.cs` を追加し、Inspector から複数妖精を設定できる `MonoBehaviour` を作成する。
-- `Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs` を追加し、重み付きランダム抽選ロジックを実装する。
-- `Assets/Scripts/Fairy/StickerFairyAssignment.cs` を追加し、シール単位の妖精割当情報を表現する。
-- `Assets/Scripts/StickerRuntimeRegistry.cs` を更新し、`bool hasFairy` ではなく妖精割当情報を保持・消費できるようにする。
-- `Assets/Scripts/Fairy/FairyCollectionState.cs` を追加し、セッション中の獲得済み妖精 ID を保持できるようにする。
-- `Assets/Scripts/Fairy/FairyCollectionService.cs` を追加し、将来の保存差し替えを見据えた獲得状態の読み書き窓口を用意する。
-- `Assets/Scripts/Fairy/FairyDiscoveryLogger.cs` を追加し、新規発見/既発見のログ出力を分けられるようにする。
-- `Assets/Scripts/TapStickerPlacer.cs` を更新し、妖精カタログ参照、重み付き抽選、割当登録へ置き換える。
-- `Assets/Scripts/PeelSticker3D.cs` を更新し、剥がし完了時に割当妖精を消費し、獲得状態更新とログ出力を行うようにする。
-- `Assets/Main.unity` を更新し、`FairyCatalogSource` をシーンへ追加して `TapStickerPlacer` から参照させる。
-- 手動確認で、複数妖精登録、重み付き出現、0 件時の無ログ動作、新規発見ログ、既発見ログ、セッション中の獲得状態保持を検証する。
+1. [Assets/UI/UXML/FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml) を追加し、背景オーバーレイ、右側パネル、スクロール領域、閉じるボタン、発見数ラベルを定義する。
+2. [Assets/UI/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/FairyCollectionScreen.uss) を追加し、ワイヤー準拠のレイアウトと未獲得グレーアウト表現を作る。
+3. [Assets/Scripts/Fairy/FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs) に `IsDiscovered` と件数集計 API を追加する。
+4. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に `fairy-button` の参照、コレクション UXML の初期化、表示切替、一覧構築処理を追加する。
+5. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) でカード生成処理を実装し、獲得済み / 未獲得の表示分岐を入れる。
+6. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) で背景押下と閉じるボタン押下の両方に close 処理を接続する。
+7. [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml) と [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss) を必要最小限調整し、HUD 本体との共存を確認する。
+8. [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) で `HubScreenBinder` に `FairyCatalogSource` と新規 `VisualTreeAsset` を割り当てる。
+9. 手動確認で、表示 / 閉じる / 背面入力遮断 / 未獲得表示 / 0 件表示 / スクロール表示を検証する。
+

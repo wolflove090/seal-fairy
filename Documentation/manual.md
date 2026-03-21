@@ -1,400 +1,251 @@
-# 妖精コレクション機能 作業手順書
+# 妖精コレクション画面 作業手順書
 
 ## 目的
-- 複数の妖精をデータ登録できるようにする。
-- シール配置時に、登録済み妖精から重み付きランダムで 1 体を割り当てる。
-- 妖精発見時にセッション中の獲得状態を更新し、新規発見か既発見かをログで判別できるようにする。
-- 永続保存は実装せず、将来 `PlayerPrefs` へ差し替えやすい構造を作る。
+- HUD の `妖精` ボタンから開く妖精コレクション画面を追加する。
+- 登録済み全妖精をスクロール一覧で表示し、未獲得妖精は `*****`、`未発見`、画像グレーアウトで表現する。
+- コレクション画面は半透明グレーの全画面背景で背面入力を遮断し、閉じるボタンと背景押下で閉じられるようにする。
 
-## 作成・更新するもの
-- `Assets/Scripts/Fairy/FairyDefinition.cs`
-- `Assets/Scripts/Fairy/FairyCatalogSource.cs`
-- `Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs`
-- `Assets/Scripts/Fairy/StickerFairyAssignment.cs`
-- `Assets/Scripts/Fairy/FairyCollectionState.cs`
-- `Assets/Scripts/Fairy/FairyCollectionService.cs`
-- `Assets/Scripts/Fairy/FairyDiscoveryLogger.cs`
-- [Assets/Scripts/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs)
-- [Assets/Scripts/StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerRuntimeRegistry.cs)
-- [Assets/Scripts/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs)
+## 変更対象
+- [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
+- [Assets/Scripts/Fairy/FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs)
+- [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml)
+- [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss)
+- [Assets/UI/UXML/FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml)
+- [Assets/UI/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/FairyCollectionScreen.uss)
 - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
 
-## 手順1: 妖精用フォルダを作成
-1. `Assets/Scripts` 配下に `Fairy` フォルダを作成する。
-2. 今回追加する妖精関連クラスはすべてこのフォルダに置く。
+## 手順1: コレクション用 UXML を作成
+1. [Assets/UI/UXML/FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml) を新規作成する。
+2. ルートは全画面オーバーレイ用 `VisualElement` にする。
+3. その直下に以下の要素を置く。
+- `fairy-collection-backdrop`
+- `fairy-collection-panel`
+- `fairy-collection-title`
+- `fairy-collection-scroll-view`
+- `fairy-collection-empty-label`
+- `fairy-collection-close-button`
+- `fairy-collection-count-label`
+4. 背景はパネルより背面、ただし HUD より前面になるように構成する。
+5. `fairy-collection-scroll-view` は縦スクロール、内容は wrap 配置前提にする。
 
-## 手順2: 妖精定義データを作成
-1. `Assets/Scripts/Fairy/FairyDefinition.cs` を作成する。
-2. 内容は以下をベースにする。
+### UXML 例
+```xml
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI/USS/FairyCollectionScreen.uss?fileID=7433441132597879392&amp;guid=REPLACE_ME&amp;type=3#FairyCollectionScreen"/>
+    <ui:VisualElement name="fairy-collection-overlay">
+        <ui:Button name="fairy-collection-backdrop" />
+        <ui:VisualElement name="fairy-collection-panel">
+            <ui:Label name="fairy-collection-title" text="妖精一覧" />
+            <ui:Label name="fairy-collection-empty-label" text="妖精が登録されていません" />
+            <ui:ScrollView name="fairy-collection-scroll-view" mode="Vertical" />
+            <ui:VisualElement name="fairy-collection-footer">
+                <ui:Button name="fairy-collection-close-button" text="閉じる" />
+                <ui:Label name="fairy-collection-count-label" text="発見した数: 0/0" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
+```
 
-```csharp
-using UnityEngine;
+## 手順2: コレクション用 USS を作成
+1. [Assets/UI/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/FairyCollectionScreen.uss) を新規作成する。
+2. `fairy-collection-overlay` は全画面ストレッチ、初期状態は非表示にする。
+3. `fairy-collection-backdrop` は半透明グレーで全画面を覆う。
+4. `fairy-collection-panel` はワイヤーに合わせて画面右側に固定する。
+5. スクロールコンテンツは 2 列カードレイアウトになるようにする。
+6. 未獲得画像用 class `fairy-card__image--undiscovered` を用意し、グレースケール相当の見た目にする。
 
-[System.Serializable]
-public sealed class FairyDefinition
-{
-    [SerializeField] private string id;
-    [SerializeField] private string displayName;
-    [SerializeField, Min(0)] private int weight = 1;
-    [SerializeField] private Sprite icon;
+### USS 例
+```css
+#fairy-collection-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: none;
+}
 
-    public string Id => id;
-    public string DisplayName => displayName;
-    public int Weight => weight;
-    public Sprite Icon => icon;
+#fairy-collection-backdrop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(128, 128, 128, 0.55);
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+#fairy-collection-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 830px;
+    bottom: 0;
+    padding: 32px;
+    background-color: rgb(217, 217, 217);
+}
+
+#fairy-collection-scroll-view .unity-scroll-view__content-container {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
 }
 ```
 
-3. `icon` は今回未使用でも残してよい。将来のコレクション UI 用の参照枠として扱う。
-4. `id` は実行時識別子なので、配列 index を識別子代わりに使わない。
-
-## 手順3: 妖精カタログ供給元を作成
-1. `Assets/Scripts/Fairy/FairyCatalogSource.cs` を作成する。
-2. Inspector で複数妖精を設定できる `MonoBehaviour` にする。
+## 手順3: FairyCollectionService に参照 API を追加
+1. [Assets/Scripts/Fairy/FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs) を開く。
+2. `TryRegisterDiscovery` は維持したまま、以下を追加する。
 
 ```csharp
-using System.Collections.Generic;
-using UnityEngine;
-
-[DisallowMultipleComponent]
-public sealed class FairyCatalogSource : MonoBehaviour
+public static bool IsDiscovered(string fairyId)
 {
-    [SerializeField] private List<FairyDefinition> fairies = new();
+    return state.Contains(fairyId);
+}
 
-    public IReadOnlyList<FairyDefinition> GetFairies()
+public static int GetDiscoveredCount(IReadOnlyList<FairyDefinition> fairies)
+{
+    if (fairies == null)
     {
-        return fairies;
+        return 0;
     }
+
+    int count = 0;
+    foreach (FairyDefinition fairy in fairies)
+    {
+        if (fairy != null && state.Contains(fairy.Id))
+        {
+            count++;
+        }
+    }
+
+    return count;
 }
 ```
 
-3. 抽選ロジックはここに書かない。
+3. UI 側は `HashSet` を直接触らず、このサービス経由で状態取得する。
 
-## 手順4: 重み付き抽選クラスを作成
-1. `Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs` を作成する。
-2. 以下をベースに実装する。
-
-```csharp
-using System.Collections.Generic;
-using UnityEngine;
-
-public static class FairyWeightedRandomSelector
-{
-    public static FairyDefinition Select(IReadOnlyList<FairyDefinition> fairies)
-    {
-        if (fairies == null || fairies.Count == 0)
-        {
-            return null;
-        }
-
-        int totalWeight = 0;
-        foreach (FairyDefinition fairy in fairies)
-        {
-            if (!IsSelectable(fairy))
-            {
-                continue;
-            }
-
-            totalWeight += fairy.Weight;
-        }
-
-        if (totalWeight <= 0)
-        {
-            return null;
-        }
-
-        int roll = Random.Range(0, totalWeight);
-        int accumulated = 0;
-        foreach (FairyDefinition fairy in fairies)
-        {
-            if (!IsSelectable(fairy))
-            {
-                continue;
-            }
-
-            accumulated += fairy.Weight;
-            if (roll < accumulated)
-            {
-                return fairy;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsSelectable(FairyDefinition fairy)
-    {
-        return fairy != null
-            && !string.IsNullOrWhiteSpace(fairy.Id)
-            && fairy.Weight > 0;
-    }
-}
-```
-
-3. `weight <= 0`、null、`id` 空文字は抽選対象外にする。
-4. 総 weight が 0 のときは `null` を返し、妖精なし扱いにする。
-
-## 手順5: シール割当情報を作成
-1. `Assets/Scripts/Fairy/StickerFairyAssignment.cs` を作成する。
-2. シールに割り当てた妖精情報をまとめる。
-
-```csharp
-public sealed class StickerFairyAssignment
-{
-    public StickerFairyAssignment(FairyDefinition fairy)
-    {
-        Fairy = fairy;
-        FairyId = fairy != null ? fairy.Id : null;
-    }
-
-    public FairyDefinition Fairy { get; }
-    public string FairyId { get; }
-    public bool HasFairy => Fairy != null && !string.IsNullOrWhiteSpace(FairyId);
-}
-```
-
-## 手順6: 獲得状態管理を作成
-1. `Assets/Scripts/Fairy/FairyCollectionState.cs` を作成する。
-
-```csharp
-using System.Collections.Generic;
-
-public sealed class FairyCollectionState
-{
-    private readonly HashSet<string> discoveredFairyIds = new();
-
-    public bool TryAdd(string fairyId)
-    {
-        return !string.IsNullOrWhiteSpace(fairyId) && discoveredFairyIds.Add(fairyId);
-    }
-
-    public bool Contains(string fairyId)
-    {
-        return !string.IsNullOrWhiteSpace(fairyId) && discoveredFairyIds.Contains(fairyId);
-    }
-
-    public void Clear()
-    {
-        discoveredFairyIds.Clear();
-    }
-}
-```
-
-2. `Assets/Scripts/Fairy/FairyCollectionService.cs` を作成する。
-
-```csharp
-using UnityEngine;
-
-public static class FairyCollectionService
-{
-    private static FairyCollectionState state = new();
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetState()
-    {
-        state = new FairyCollectionState();
-    }
-
-    public static bool TryRegisterDiscovery(FairyDefinition fairy, out bool isNewDiscovery)
-    {
-        isNewDiscovery = false;
-        if (fairy == null || string.IsNullOrWhiteSpace(fairy.Id))
-        {
-            return false;
-        }
-
-        isNewDiscovery = state.TryAdd(fairy.Id);
-        return true;
-    }
-}
-```
-
-3. 今回はメモリ保持のみとし、`PlayerPrefs` の書き込みは入れない。
-
-## 手順7: 発見ログクラスを作成
-1. `Assets/Scripts/Fairy/FairyDiscoveryLogger.cs` を作成する。
-2. ログ文言は実装時に微調整してよいが、妖精名と新規/既発見の区別を必須とする。
-
-```csharp
-using UnityEngine;
-
-public static class FairyDiscoveryLogger
-{
-    public static void LogDiscovered(FairyDefinition fairy, bool isNewDiscovery)
-    {
-        if (fairy == null)
-        {
-            return;
-        }
-
-        string name = string.IsNullOrWhiteSpace(fairy.DisplayName) ? fairy.Id : fairy.DisplayName;
-        if (isNewDiscovery)
-        {
-            Debug.Log($"新しい妖精を発見: {name}");
-            return;
-        }
-
-        Debug.Log($"既に発見済みの妖精: {name}");
-    }
-}
-```
-
-## 手順8: StickerRuntimeRegistry を更新
-1. [StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerRuntimeRegistry.cs) を開く。
-2. `fairyByStickerId` を `assignmentByStickerId` に置き換える。
-3. 目標形は以下。
-
-```csharp
-using System.Collections.Generic;
-
-public static class StickerRuntimeRegistry
-{
-    private static readonly Dictionary<int, StickerFairyAssignment> assignmentByStickerId = new();
-    private static readonly Dictionary<int, PeelSticker3D> stickerById = new();
-
-    public static void Register(PeelSticker3D sticker, StickerFairyAssignment assignment)
-    {
-        if (sticker == null)
-        {
-            return;
-        }
-
-        int key = sticker.GetInstanceID();
-        stickerById[key] = sticker;
-
-        if (assignment != null && assignment.HasFairy)
-        {
-            assignmentByStickerId[key] = assignment;
-            return;
-        }
-
-        assignmentByStickerId.Remove(key);
-    }
-
-    public static bool TryConsumeFairy(PeelSticker3D sticker, out StickerFairyAssignment assignment)
-    {
-        assignment = null;
-        if (sticker == null)
-        {
-            return false;
-        }
-
-        int key = sticker.GetInstanceID();
-        if (!assignmentByStickerId.TryGetValue(key, out assignment))
-        {
-            return false;
-        }
-
-        assignmentByStickerId.Remove(key);
-        return assignment != null && assignment.HasFairy;
-    }
-}
-```
-
-4. `UnRegister()` と `ClearAll()` でも `assignmentByStickerId` を確実に消す。
-5. `GetActiveStickers()` は既存契約を維持する。
-
-## 手順9: TapStickerPlacer を更新
-1. [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) に妖精カタログ参照を追加する。
+## 手順4: HubScreenBinder にコレクション表示制御を追加
+1. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に以下の SerializeField を追加する。
 
 ```csharp
 [SerializeField] private FairyCatalogSource fairyCatalogSource;
+[SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
 ```
 
-2. `SpawnSticker()` 内の `bool hasFairy = Random.value < 0.5f;` を削除する。
-3. 以下の流れへ置き換える。
-- 妖精一覧取得
-- 重み付き抽選
-- `StickerFairyAssignment` 作成
-- registry 登録
-- 妖精ありならエフェクト付与
+2. 取得済みの `rootVisualElement` に対して `fairyCollectionScreenAsset.CloneTree()` を追加し、オーバーレイ要素参照を確保する。
+3. `fairy-button` の参照を取り、クリックで `OpenFairyCollection()` を呼ぶ。
+4. `fairy-collection-close-button` と `fairy-collection-backdrop` に `CloseFairyCollection()` を接続する。
+5. `OnDisable` で各クリックイベントを解除する。
 
-4. 例:
+## 手順5: 一覧構築処理を実装
+1. `HubScreenBinder` に `RefreshFairyCollection()` を追加する。
+2. `fairyCatalogSource.GetFairies()` で全妖精を取得する。
+3. 件数 0 の場合は空表示ラベルを出し、`発見した数: 0/0` をセットする。
+4. 妖精がある場合は `ScrollView.Clear()` のうえでカードを 1 件ずつ追加する。
+5. 獲得済み判定は `FairyCollectionService.IsDiscovered(fairy.Id)` を使う。
 
+### 一覧更新例
 ```csharp
-private void SpawnSticker(Vector3 worldPoint)
+private void OpenFairyCollection()
 {
-    PeelSticker3D sticker = Instantiate(templateSticker);
-    sticker.name = "Peel Sticker";
-    sticker.transform.SetPositionAndRotation(worldPoint, templateSticker.transform.rotation);
-    sticker.transform.localScale = templateSticker.transform.localScale;
-    sticker.gameObject.SetActive(true);
-    sticker.PeelAmount = 0f;
-    sticker.SetTapPeelEnabled(false);
+    RefreshFairyCollection();
+    fairyCollectionOverlay.style.display = DisplayStyle.Flex;
+}
 
-    FairyDefinition selectedFairy = FairyWeightedRandomSelector.Select(
-        fairyCatalogSource != null ? fairyCatalogSource.GetFairies() : null);
-
-    StickerFairyAssignment assignment = selectedFairy != null
-        ? new StickerFairyAssignment(selectedFairy)
+private void RefreshFairyCollection()
+{
+    IReadOnlyList<FairyDefinition> fairies = fairyCatalogSource != null
+        ? fairyCatalogSource.GetFairies()
         : null;
 
-    StickerRuntimeRegistry.Register(sticker, assignment);
+    fairyCollectionScrollView.Clear();
 
-    if (assignment != null && assignment.HasFairy)
+    if (fairies == null || fairies.Count == 0)
     {
-        AttachFairyEffect(sticker);
-    }
-}
-```
-
-5. 妖精 0 件時は `selectedFairy == null` なので、配置は継続し、妖精ログも出ない。
-
-## 手順10: PeelSticker3D を更新
-1. [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) の `CompletePeel()` を修正する。
-2. 固定の `Debug.Log("妖精を発見！")` を削除する。
-3. registry、獲得状態サービス、ログクラスを使う形にする。
-
-```csharp
-private void CompletePeel()
-{
-    if (isPeelComplete)
-    {
+        fairyCollectionEmptyLabel.style.display = DisplayStyle.Flex;
+        fairyCollectionCountLabel.text = "発見した数: 0/0";
         return;
     }
 
-    isPeelComplete = true;
-    isAutoPeeling = false;
+    fairyCollectionEmptyLabel.style.display = DisplayStyle.None;
 
-    if (StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment)
-        && assignment != null
-        && assignment.HasFairy
-        && FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery))
+    foreach (FairyDefinition fairy in fairies)
     {
-        FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
+        bool isDiscovered = fairy != null && FairyCollectionService.IsDiscovered(fairy.Id);
+        fairyCollectionScrollView.Add(CreateFairyCard(fairy, isDiscovered));
     }
 
-    Destroy(gameObject, 0.5f);
+    fairyCollectionCountLabel.text =
+        $"発見した数: {FairyCollectionService.GetDiscoveredCount(fairies)}/{fairies.Count}";
 }
 ```
 
-4. 妖精なしシールではロガーを呼ばない。
+## 手順6: カード生成処理を実装
+1. `CreateFairyCard(FairyDefinition fairy, bool isDiscovered)` を `HubScreenBinder` に追加する。
+2. 獲得済み時は以下を表示する。
+- 名前: `fairy.DisplayName`
+- 画像: `fairy.Icon`
+- 補足: `好きなシール: ポップ・小さい`
+3. 未獲得時は以下を表示する。
+- 名前: `*****`
+- 画像: 背景画像ありでもなしでも、未獲得用 class を付与してグレーアウト
+- 補足: `未発見`
+4. パネル本体押下で閉じないよう、カードやパネル側でイベントを背景へ流さない構成にする。
 
-## 手順11: Main.unity を設定
-1. [Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を開く。
-2. `FairyCatalog` などの名前で空 GameObject を追加する。
-3. `FairyCatalogSource` をアタッチする。
-4. Inspector で複数妖精を登録する。
-5. 例:
-- `id = fairy_blue`
-- `displayName = 青い妖精`
-- `weight = 60`
-- `id = fairy_gold`
-- `displayName = 金の妖精`
-- `weight = 10`
+### カード生成例
+```csharp
+private VisualElement CreateFairyCard(FairyDefinition fairy, bool isDiscovered)
+{
+    VisualElement card = new();
+    card.AddToClassList("fairy-card");
 
-6. `TapStickerPlacer` の `fairyCatalogSource` にそのコンポーネントを割り当てる。
+    Label nameLabel = new();
+    nameLabel.AddToClassList("fairy-card__name");
+    nameLabel.text = isDiscovered && fairy != null ? fairy.DisplayName : "*****";
 
-## 手順12: 動作確認
-1. Play モードで複数妖精を登録した状態でシールを配置し、剥がした時に妖精名付きログが出ることを確認する。
-2. 同じ妖精を再度見つけた時、ログが既発見向け文言に変わることを確認する。
-3. `FairyCatalogSource` を空配列にしても、配置と剥がしが例外なく動作し、妖精ログが出ないことを確認する。
-4. `weight` を極端に変えた妖精を登録し、重い妖精が出やすいことを概観確認する。
-5. フェーズを往復した後も、同じセッション中なら既発見判定が維持されることを確認する。
+    VisualElement image = new();
+    image.AddToClassList("fairy-card__image");
+    if (!isDiscovered)
+    {
+        image.AddToClassList("fairy-card__image--undiscovered");
+    }
+    else if (fairy != null && fairy.Icon != null)
+    {
+        image.style.backgroundImage = new StyleBackground(fairy.Icon.texture);
+    }
 
-## 完了条件
-- 妖精データを Inspector から複数登録できる。
-- シールごとに妖精割当情報を保持できる。
-- 発見ログが新規/既発見で分岐する。
-- 妖精 0 件時もゲーム進行が止まらない。
-- 獲得状態管理の差し替え窓口が分離されている。
+    Label detailLabel = new();
+    detailLabel.AddToClassList("fairy-card__detail");
+    detailLabel.text = isDiscovered ? "好きなシール: ポップ・小さい" : "未発見";
+
+    card.Add(nameLabel);
+    card.Add(image);
+    card.Add(detailLabel);
+    return card;
+}
+```
+
+## 手順7: 既存 HUD との共存を調整
+1. [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml) の `fairy-button` はそのまま使う。
+2. 既存 HUD UXML に大きな追加はせず、オーバーレイは binder から差し込む。
+3. [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss) に必要なら `fairy-button` の見た目調整だけ入れる。
+
+## 手順8: シーン参照を設定
+1. [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を開く。
+2. `HubScreenBinder` の Inspector で `fairyCatalogSource` に既存の `FairyCatalogSource` を割り当てる。
+3. `fairyCollectionScreenAsset` に [FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml) を割り当てる。
+4. `UIDocument` の参照が既存どおり接続されていることを確認する。
+
+## 手順9: 動作確認
+1. `妖精` ボタンでコレクション画面が開くことを確認する。
+2. 背景が半透明グレーで全画面を覆うことを確認する。
+3. `閉じる` ボタンと背景押下の両方で閉じることを確認する。
+4. コレクション表示中に背面 HUD やゲーム入力が反応しないことを確認する。
+5. 獲得済み妖精の名前、画像、固定文言が表示されることを確認する。
+6. 未獲得妖精が `*****`、`未発見`、画像グレーアウトで表示されることを確認する。
+7. 一覧が複数件でスクロール動作することを確認する。
+8. 妖精 0 件時に空表示と `発見した数: 0/0` が出ることを確認する。

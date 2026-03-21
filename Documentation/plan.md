@@ -1,196 +1,166 @@
-# 妖精コレクション機能 実装計画
+# 妖精コレクション画面 実装計画
 
 ## 実装方針
-- 現状の妖精処理は [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) の配置時抽選、[StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerRuntimeRegistry.cs) のランタイム保持、[PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) の発見ログに分散している。今回の実装では責務を「妖精マスターデータ」「配置済みシールへの割当」「獲得状態管理」「ログ出力」に分離する。
-- 妖精マスターデータは `MonoBehaviour` 配列で保持する。Inspector で登録できる一覧コンポーネントをシーンへ置き、配置処理はそこから `IReadOnlyList` を取得する。
-- シール配置時は、登録済み妖精一覧から重み付きランダムで 1 体を選択し、そのシールの割当情報として `StickerRuntimeRegistry` に登録する。妖精一覧が 0 件、または有効 weight がない場合は妖精なしとして扱う。
-- 既存の `KiraKiraEffect` は「妖精ありシール」共通の演出として継続利用し、妖精種別ごとの prefab 差し替えは行わない。
-- 妖精獲得状態はセッション中のみメモリ保持する。将来的に `PlayerPrefs` へ置き換えやすいよう、獲得状態の読み書きは専用サービスを経由させる。
-- 発見ログは固定文言を `PeelSticker3D` に埋め込まず、妖精名と新規/既発見フラグを受け取って出力する専用クラスへ切り出す。
-- 既存のシール選択 UI やフェーズ UI は今回のスコープ外なので変更しない。
+- 既存 HUD は [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml) と [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss) と [HubScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) で構成されているため、HUD 本体は維持しつつ、妖精コレクション部分だけを別 UXML / USS に分離する。
+- 新規 UXML は HUD と同じ `UIDocument` 配下へ `VisualTreeAsset` として差し込み、表示制御は既存 `HubScreenBinder` に集約する。これによりシーン上の `UIDocument` 追加やバインダ増殖を避け、既存フェーズ UI との接続点を 1 箇所に保つ。
+- 妖精一覧のデータソースは [FairyCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogSource.cs) の全件一覧と [FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs) の獲得状態を組み合わせる。
+- 未獲得表示は「画像部分グレーアウト」「名前は `*****`」「補足文言は `未発見`」で固定し、好きなシール文言は獲得済み時のみ固定文言 `好きなシール: ポップ・小さい` を表示する。
+- コレクション画面表示中は全画面背景オーバーレイで背面入力を遮断し、閉じるボタンと背景押下の両方で閉じられるようにする。
 
 ## 変更対象ファイル一覧
 
 ### 更新予定
-- [Assets/Scripts/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs)
-  - `Random.value < 0.5f` を廃止し、妖精カタログからの重み付き抽選へ置き換える。
-  - シーン上の妖精一覧供給元参照を受け取り、シール生成時に割当情報を `StickerRuntimeRegistry` へ登録する。
-  - 妖精ありシールにのみ既存の `AttachFairyEffect()` を適用する。
-- [Assets/Scripts/StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerRuntimeRegistry.cs)
-  - `Dictionary<int, bool>` を、妖精割当情報を保持できる辞書へ変更する。
-  - `TryConsumeFairy()` を、発見した妖精情報を返せる API に変更する。
-- [Assets/Scripts/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs)
-  - 剥がし完了時に registry から妖精割当を消費する。
-  - 発見時に獲得状態サービスを更新し、その結果に応じてログクラスを呼ぶ。
-  - 妖精なしシールではログを出さない。
+- [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
+  - `fairy-button` の押下ハンドラを追加する。
+  - 新規コレクション UXML を `rootVisualElement` に差し込み、表示 / 非表示を管理する。
+  - 妖精一覧カード生成、発見数表示、背景押下で閉じる処理を追加する。
+  - オーバーレイ表示中のフェーズ操作や既存 HUD ボタンとの競合を防ぐ。
+- [Assets/Scripts/Fairy/FairyCollectionService.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCollectionService.cs)
+  - UI から参照するための読み取り API を追加する。
+  - 追加候補は `IsDiscovered(string fairyId)`、`GetDiscoveredCount(IReadOnlyList<FairyDefinition> fairies)`。
+- [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml)
+  - `fairy-button` は維持しつつ、新規コレクション UXML をバインダから注入しやすい構成で使い続ける。
+  - 必要ならテンプレート参照用の最小追加のみ行う。
+- [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss)
+  - HUD 本体レイアウトを維持しつつ、コレクション表示中も見た目崩れが出ないようにする。
+  - 必要に応じて `fairy-button` の状態制御クラスだけ追加する。
 - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
-  - 妖精カタログコンポーネントを追加し、`TapStickerPlacer` に参照を割り当てる。
+  - `HubScreenBinder` に新規 `VisualTreeAsset`、必要なら `StyleSheet`、`FairyCatalogSource` 参照を割り当てる。
 
 ### 新規作成予定
-- `Assets/Scripts/Fairy/FairyDefinition.cs`
-  - `id`、`displayName`、`weight`、将来 UI 用の参照を持つ妖精定義データ。
-- `Assets/Scripts/Fairy/FairyCatalogSource.cs`
-  - Inspector で複数妖精を登録する `MonoBehaviour`。
-- `Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs`
-  - 妖精一覧から重み付き抽選するユーティリティ。
-- `Assets/Scripts/Fairy/StickerFairyAssignment.cs`
-  - シール単位で保持する妖精割当情報。
-- `Assets/Scripts/Fairy/FairyCollectionState.cs`
-  - セッション中の獲得済み妖精 ID 群をメモリ保持する状態クラス。
-- `Assets/Scripts/Fairy/FairyCollectionService.cs`
-  - 獲得状態の読み書き窓口。将来の永続保存差し替え点。
-- `Assets/Scripts/Fairy/FairyDiscoveryLogger.cs`
-  - 妖精名と新規/既発見判定に応じたログ出力を行う。
+- [Assets/UI/UXML/FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/FairyCollectionScreen.uxml)
+  - 全画面背景オーバーレイ、右側パネル、タイトル、スクロール領域、閉じるボタン、発見数ラベルを持つ。
+- [Assets/UI/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/FairyCollectionScreen.uss)
+  - ワイヤー準拠の半透明背景、右側パネル、2 列カードレイアウト、グレーアウト表現を定義する。
 
 ## データフロー / 処理フロー
-1. シーン開始時、`FairyCatalogSource` が Inspector 登録済みの妖精一覧を保持する。
-2. `TapStickerPlacer` がシール配置時に `FairyCatalogSource` から妖精一覧を取得する。
-3. `FairyWeightedRandomSelector` が有効な妖精定義だけを対象に総 weight を計算し、重み付きで 1 体を選ぶ。
-4. 選ばれた妖精があれば `StickerFairyAssignment` を作成し、なければ妖精なしとして扱う。
-5. `TapStickerPlacer` が `StickerRuntimeRegistry.Register(sticker, assignment)` を呼び、シール参照と割当情報を保存する。
-6. `assignment` が妖精ありなら `KiraKiraEffect` をシールへ付与する。
-7. `PeelSticker3D` が剥がし完了時に `StickerRuntimeRegistry.TryConsumeFairy()` を呼び、対象シールの割当情報を 1 回だけ取り出す。
-8. 妖精割当が存在する場合、`FairyCollectionService` が獲得済み判定を更新し、新規発見かどうかを返す。
-9. `FairyDiscoveryLogger` が妖精名付きのログを出力する。
-10. フェーズ遷移でシールを全消去したときは `StickerRuntimeRegistry` だけをクリアし、獲得済み情報はセッション中維持する。
+1. シーン開始時、`HubScreenBinder` が HUD の `rootVisualElement` を取得する。
+2. `HubScreenBinder` は Inspector で受けた `VisualTreeAsset` から `FairyCollectionScreen.uxml` を複製し、HUD ルートへ追加する。
+3. コレクションオーバーレイ内の `close-button`、背景要素、スクロール領域、発見数ラベルを `Q()` で取得する。
+4. プレイヤーが `fairy-button` を押すと、`FairyCatalogSource.GetFairies()` から全妖精一覧を取得する。
+5. `HubScreenBinder` は各 `FairyDefinition` について `FairyCollectionService.IsDiscovered(fairy.Id)` を呼び、カード表示内容を決める。
+6. 獲得済みなら `DisplayName`、`Icon`、固定文言 `好きなシール: ポップ・小さい` を表示する。
+7. 未獲得なら名前を `*****`、補足文言を `未発見`、画像領域にグレーアウト用 class を付与する。
+8. カードを 2 列グリッドとして `ScrollView` に追加する。
+9. `FairyCollectionService.GetDiscoveredCount(fairies)` と `fairies.Count` から `発見した数: X/Y` を更新する。
+10. オーバーレイ表示中は背景要素が pointer を受け、背面 HUD / ゲーム入力を遮断する。
+11. `閉じる` ボタンまたは背景押下でオーバーレイを非表示にする。
 
 ## 処理詳細
 
-### 妖精定義データ
-- `FairyDefinition` は `[System.Serializable]` なデータクラスとする。
-- 持たせる項目は以下。
-- `string id`
-- `string displayName`
-- `int weight`
-- `Sprite icon` など将来 UI 表示で使う参照
-- `weight <= 0`、`id` 空文字、null 要素は抽選対象外とする。
+### UI 構造
+- `FairyCollectionScreen.uxml` は少なくとも以下の要素を持つ。
+- `fairy-collection-overlay`
+- `fairy-collection-backdrop`
+- `fairy-collection-panel`
+- `fairy-collection-title`
+- `fairy-collection-scroll-view`
+- `fairy-collection-empty-label`
+- `fairy-collection-close-button`
+- `fairy-collection-count-label`
+- カード生成は UXML 静的定義ではなく、`HubScreenBinder` から `VisualElement` / `Label` / `Button` を組み立てる形でよい。現状のカード情報量なら専用 item UXML までは不要。
 
-### 妖精カタログ供給
-- `FairyCatalogSource` は `List<FairyDefinition>` を SerializeField で保持する。
-- 公開 API は `IReadOnlyList<FairyDefinition> GetFairies()` とする。
-- UI や他機能から再利用できるよう、抽選責務は持たせない。
+### バインド設計
+- `HubScreenBinder` に以下の SerializeField を追加する。
+- `VisualTreeAsset fairyCollectionScreenAsset`
+- `FairyCatalogSource fairyCatalogSource`
+- 既存 `uiDocument` と同じライフサイクルで初期化し、`OnEnable` でオーバーレイ生成、`OnDisable` でイベント解除を行う。
+- オーバーレイが未設定でも NullReference で落ちないよう、防御コードを入れる。
 
-### 重み付きランダム
-- 抽選は総 weight を使った累積方式とする。
-- 有効な妖精定義だけを集計対象にする。
-- 総 weight が 0 の場合は `null` を返す。
-- 同一妖精が複数回選ばれてよい。
+### 状態参照 API
+- `FairyCollectionService` は登録 API に加えて参照 API を持つ。
+- `bool IsDiscovered(string fairyId)`
+- `int GetDiscoveredCount(IReadOnlyList<FairyDefinition> fairies)`
+- 集計時は null 要素や空 ID を除外し、UI 側が重複した条件分岐を持たないようにする。
 
-### 配置済みシール割当
-- `StickerRuntimeRegistry` は以下を保持する。
-- `Dictionary<int, PeelSticker3D> stickerById`
-- `Dictionary<int, StickerFairyAssignment> assignmentByStickerId`
-- `StickerFairyAssignment` は少なくとも `FairyDefinition Fairy` と `string FairyId` を持つ。
-- `TryConsumeFairy()` はシールごとの割当を一度だけ返し、返却後に辞書から除去する。
-- 妖精なしシールは assignment 未登録、または `HasFairy == false` の割当として扱う。利用側分岐が単純な形を優先する。
+### カード見た目
+- 獲得済みカードは通常色で、画像は `StyleBackground` に `fairy.Icon.texture` を設定する。
+- 未獲得カードはカード全体を消さず、画像枠だけに `fairy-card__image--undiscovered` の class を付ける。
+- アイコン未設定時は背景画像なしでも崩れないプレースホルダー見た目にする。
+- 補足文言は獲得済み時のみ `好きなシール: ポップ・小さい`、未獲得時は `未発見` を表示する。
 
-### 獲得状態管理
-- `FairyCollectionState` は `HashSet<string>` を用いて獲得済み妖精 ID を保持する。
-- `FairyCollectionService` は `TryRegisterDiscovery(FairyDefinition fairy, out bool isNewDiscovery)` のような API を持つ。
-- 新規獲得時のみ ID を追加し、再発見時は状態を変えない。
-- 起動中のみ状態を保持し、Play 再開始時は初期化されるよう `RuntimeInitializeOnLoadMethod` を使う。
-- 将来的に `PlayerPrefs` を導入する場合も、このサービスだけ差し替えれば済むようにする。
-
-### 発見ログ
-- `FairyDiscoveryLogger` は `LogDiscovered(FairyDefinition fairy, bool isNewDiscovery)` を持つ。
-- ログには必ず妖精名を含める。
-- 新規発見と既発見で Console 上の文面を明確に分ける。
-- 最終文言は実装時に調整するが、判別可能性を落とさない。
-
-### フェーズ遷移との整合
-- [SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs) の `ClearRemainingStickers()` は現状どおり `StickerRuntimeRegistry.ClearAll()` を呼ぶ。
-- ここでは配置済みシールとその妖精割当だけを破棄し、獲得済み情報は消さない。
-- 全リセット機能が必要になった場合のみ、獲得状態クリア API を追加する。
+### 入力制御
+- 背景オーバーレイは `PickingMode.Position` を有効にして最前面でクリックを受ける。
+- 背景押下時は閉じるが、パネル本体押下では閉じないようイベント伝播を抑制する。
+- コレクション表示中に `ready-button` や `shop-button` が押されないことを前提に、背景が全画面を覆う構造にする。
 
 ## リスクと対策
-- `TapStickerPlacer` に抽選、割当生成、演出付与を詰め込みすぎると保守性が落ちる。
-  - 重み付き抽選と獲得状態管理は別クラス化し、`TapStickerPlacer` は配置時の組み立て役に留める。
-- 妖精データ設定ミスで `id` 空文字や `weight=0` が混ざる可能性がある。
-  - 無効データは抽選対象外にし、クラッシュや例外停止を防ぐ。
-- `StickerRuntimeRegistry` の API 変更で既存フェーズ処理が壊れる可能性がある。
-  - `GetActiveStickers()` と `ClearAll()` の契約は維持し、変更は妖精関連 API に閉じる。
-- セッション状態を static で持つ場合、Play 再実行時の残留が起こりうる。
-  - 起動初期化フックで状態を再生成する。
+- `HubScreenBinder` に一覧生成まで集約すると責務が増える。
+  - 今回は 1 画面のみで関連度が高いため binder 集約で進めるが、将来詳細画面やフィルタが増えたら `FairyCollectionPanelController` へ分離する。
+- `FairyCollectionService` が登録専用 API のままだと UI が内部状態へ直接触れたくなる。
+  - 参照 API を追加し、UI はサービス経由でのみ獲得状態を知るようにする。
+- 背景押下で閉じる実装時にパネル内クリックまで閉じる可能性がある。
+  - パネル本体で click / pointer イベントを握りつぶし、背景だけで close を発火させる。
+- 一覧件数増加時にカードサイズが崩れる可能性がある。
+  - ScrollView の content を wrap レイアウトにし、カード幅を固定して 2 列を維持する。
 
 ## 検証方針
 - 手動確認1:
-  - Inspector から複数妖精を登録でき、各妖精に重みを設定できることを確認する。
+  - `妖精` ボタン押下で半透明背景付きのコレクション画面が開くこと。
 - 手動確認2:
-  - 妖精 0 件の状態でシール配置と剥がしを行っても例外が出ず、妖精関連ログも出ないことを確認する。
+  - `閉じる` ボタンと背景押下の両方で閉じること。
 - 手動確認3:
-  - 重みを変えた複数妖精を登録し、多数回の配置で重い妖精ほど出やすいことを概観確認する。
+  - 表示中に `ready-button`、`shop-button`、ゲーム画面の入力が反応しないこと。
 - 手動確認4:
-  - 初めて見つけた妖精では新規発見ログが出ることを確認する。
+  - 獲得済み妖精は名前、画像、固定文言が表示されること。
 - 手動確認5:
-  - 同じ妖精を再度見つけた場合は既発見ログに切り替わることを確認する。
+  - 未獲得妖精は名前が `*****`、補足文言が `未発見`、画像がグレーアウトになること。
 - 手動確認6:
-  - 妖精ありシールでは既存の `KiraKiraEffect` が付き、妖精種別に関係なく共通演出であることを確認する。
+  - 妖精件数が増えてもスクロールで最後まで閲覧できること。
 - 手動確認7:
-  - フェーズ往復で配置済みシールは消えても、同一セッション中の獲得済み判定が維持されることを確認する。
+  - 妖精 0 件のときに空表示と `発見した数: 0/0` が出ること。
 
 ## コードスニペット
 ```csharp
-[System.Serializable]
-public sealed class FairyDefinition
-{
-    [SerializeField] private string id;
-    [SerializeField] private string displayName;
-    [SerializeField, Min(0)] private int weight = 1;
+[SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
+[SerializeField] private FairyCatalogSource fairyCatalogSource;
 
-    public string Id => id;
-    public string DisplayName => displayName;
-    public int Weight => weight;
-}
+private VisualElement fairyCollectionOverlay;
+private VisualElement fairyCollectionBackdrop;
+private VisualElement fairyCollectionPanel;
+private ScrollView fairyCollectionScrollView;
+private Label fairyCollectionCountLabel;
+private Label fairyCollectionEmptyLabel;
+private Button fairyButton;
+private Button fairyCollectionCloseButton;
 ```
 
 ```csharp
-public static class FairyWeightedRandomSelector
+private void RefreshFairyCollection()
 {
-    public static FairyDefinition Select(IReadOnlyList<FairyDefinition> fairies)
+    IReadOnlyList<FairyDefinition> fairies = fairyCatalogSource != null
+        ? fairyCatalogSource.GetFairies()
+        : null;
+
+    fairyCollectionScrollView.Clear();
+
+    if (fairies == null || fairies.Count == 0)
     {
-        int totalWeight = 0;
-        foreach (FairyDefinition fairy in fairies)
-        {
-            if (fairy == null || string.IsNullOrWhiteSpace(fairy.Id) || fairy.Weight <= 0)
-            {
-                continue;
-            }
-
-            totalWeight += fairy.Weight;
-        }
-
-        if (totalWeight <= 0)
-        {
-            return null;
-        }
-
-        int roll = Random.Range(0, totalWeight);
-        int accumulated = 0;
-        foreach (FairyDefinition fairy in fairies)
-        {
-            if (fairy == null || string.IsNullOrWhiteSpace(fairy.Id) || fairy.Weight <= 0)
-            {
-                continue;
-            }
-
-            accumulated += fairy.Weight;
-            if (roll < accumulated)
-            {
-                return fairy;
-            }
-        }
-
-        return null;
+        fairyCollectionEmptyLabel.style.display = DisplayStyle.Flex;
+        fairyCollectionCountLabel.text = "発見した数: 0/0";
+        return;
     }
+
+    fairyCollectionEmptyLabel.style.display = DisplayStyle.None;
+    foreach (FairyDefinition fairy in fairies)
+    {
+        bool isDiscovered = fairy != null && FairyCollectionService.IsDiscovered(fairy.Id);
+        fairyCollectionScrollView.Add(CreateFairyCard(fairy, isDiscovered));
+    }
+
+    fairyCollectionCountLabel.text =
+        $"発見した数: {FairyCollectionService.GetDiscoveredCount(fairies)}/{fairies.Count}";
 }
 ```
 
 ```csharp
-if (StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment)
-    && assignment != null
-    && assignment.HasFairy
-    && FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery))
+private void CloseFairyCollection()
 {
-    FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
+    if (fairyCollectionOverlay == null)
+    {
+        return;
+    }
+
+    fairyCollectionOverlay.style.display = DisplayStyle.None;
 }
 ```
