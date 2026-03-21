@@ -1,159 +1,196 @@
-# 配置シール選択機能 実装計画
+# 妖精コレクション機能 実装計画
 
 ## 実装方針
-- 既存の配置処理は [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) に集約されているため、今回も配置入口は維持しつつ、固定 `templateSticker` 依存を「現在選択中のシール定義」参照へ置き換える。
-- UI は既存の [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml) と [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss) を拡張し、左下のスクロール一覧を追加する。
-- フェーズ連携は既存の [SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs) と [HubScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) を利用し、`StickerPlacement` のときだけ一覧表示、`StickerPeeling` では非表示にする。
-- 所持シール一覧は Inspector の固定配列ではなく、所持品管理データを参照する構造を前提にする。ただし現段階のコードベースには所持品管理クラスが未存在のため、追加するデータ供給コンポーネントの責務を明確にして接続点を先に定義する。
-- フェーズ再入時は一覧の選択状態を解除し、未選択時は配置しない。起動直後の初期表示のみ一覧先頭を選択状態にする。
-- UI クリックとワールド配置の競合を避けるため、一覧セル押下中は既存の配置入力経路を通さないガードを入れる。
+- 現状の妖精処理は [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) の配置時抽選、[StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerRuntimeRegistry.cs) のランタイム保持、[PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) の発見ログに分散している。今回の実装では責務を「妖精マスターデータ」「配置済みシールへの割当」「獲得状態管理」「ログ出力」に分離する。
+- 妖精マスターデータは `MonoBehaviour` 配列で保持する。Inspector で登録できる一覧コンポーネントをシーンへ置き、配置処理はそこから `IReadOnlyList` を取得する。
+- シール配置時は、登録済み妖精一覧から重み付きランダムで 1 体を選択し、そのシールの割当情報として `StickerRuntimeRegistry` に登録する。妖精一覧が 0 件、または有効 weight がない場合は妖精なしとして扱う。
+- 既存の `KiraKiraEffect` は「妖精ありシール」共通の演出として継続利用し、妖精種別ごとの prefab 差し替えは行わない。
+- 妖精獲得状態はセッション中のみメモリ保持する。将来的に `PlayerPrefs` へ置き換えやすいよう、獲得状態の読み書きは専用サービスを経由させる。
+- 発見ログは固定文言を `PeelSticker3D` に埋め込まず、妖精名と新規/既発見フラグを受け取って出力する専用クラスへ切り出す。
+- 既存のシール選択 UI やフェーズ UI は今回のスコープ外なので変更しない。
 
 ## 変更対象ファイル一覧
 
 ### 更新予定
 - [Assets/Scripts/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs)
-  - 選択中シール定義からプレビュー元と生成 prefab を取得するよう変更する。
-  - 未選択時は配置処理を行わないようにする。
-  - UI 操作中の入力無効化を追加する。
-- [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
-  - 左下のスクロール一覧、一覧セル、選択状態表示、フェーズ切替時の表示制御を担当する。
-  - `SealPhaseEventHub` の通知を受けて一覧の表示/非表示と選択解除を行う。
-- [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml)
-  - 左下の所持シール一覧コンテナとスクロール要素を追加する。
-- [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss)
-  - 左下パネル、スクロール、画像セル、選択ハイライトの見た目を追加する。
-- [Assets/Scripts/Phase/SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs)
-  - `StickerPlacement` 再入時に一覧選択解除の通知ができるよう、必要なら phase change 以外のイベントまたは初期化呼び出しを追加する。
+  - `Random.value < 0.5f` を廃止し、妖精カタログからの重み付き抽選へ置き換える。
+  - シーン上の妖精一覧供給元参照を受け取り、シール生成時に割当情報を `StickerRuntimeRegistry` へ登録する。
+  - 妖精ありシールにのみ既存の `AttachFairyEffect()` を適用する。
+- [Assets/Scripts/StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerRuntimeRegistry.cs)
+  - `Dictionary<int, bool>` を、妖精割当情報を保持できる辞書へ変更する。
+  - `TryConsumeFairy()` を、発見した妖精情報を返せる API に変更する。
+- [Assets/Scripts/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs)
+  - 剥がし完了時に registry から妖精割当を消費する。
+  - 発見時に獲得状態サービスを更新し、その結果に応じてログクラスを呼ぶ。
+  - 妖精なしシールではログを出さない。
 - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
-  - 所持シールデータ供給コンポーネントや画像参照の接続が必要なら参照設定を追加する。
+  - 妖精カタログコンポーネントを追加し、`TapStickerPlacer` に参照を割り当てる。
 
 ### 新規作成予定
-- `Assets/Scripts/StickerSelection/OwnedStickerDefinition.cs`
-  - 一覧表示画像、識別子、配置に使う `PeelSticker3D` prefab を保持する定義データ。
-- `Assets/Scripts/StickerSelection/OwnedStickerInventorySource.cs`
-  - 所持品管理データから現在の所持シール一覧を取得する窓口。
-- `Assets/Scripts/StickerSelection/StickerSelectionState.cs`
-  - 現在の一覧、選択中シール、初回選択済みフラグ、未選択状態を管理する。
+- `Assets/Scripts/Fairy/FairyDefinition.cs`
+  - `id`、`displayName`、`weight`、将来 UI 用の参照を持つ妖精定義データ。
+- `Assets/Scripts/Fairy/FairyCatalogSource.cs`
+  - Inspector で複数妖精を登録する `MonoBehaviour`。
+- `Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs`
+  - 妖精一覧から重み付き抽選するユーティリティ。
+- `Assets/Scripts/Fairy/StickerFairyAssignment.cs`
+  - シール単位で保持する妖精割当情報。
+- `Assets/Scripts/Fairy/FairyCollectionState.cs`
+  - セッション中の獲得済み妖精 ID 群をメモリ保持する状態クラス。
+- `Assets/Scripts/Fairy/FairyCollectionService.cs`
+  - 獲得状態の読み書き窓口。将来の永続保存差し替え点。
+- `Assets/Scripts/Fairy/FairyDiscoveryLogger.cs`
+  - 妖精名と新規/既発見判定に応じたログ出力を行う。
 
 ## データフロー / 処理フロー
-1. 起動時に `OwnedStickerInventorySource` が所持品管理データから所持シール一覧を取得する。
-2. `HudScreenBinder` は一覧データを使って左下スクロール UI を構築し、起動直後のみ先頭シールを選択状態にする。
-3. `HudScreenBinder` が一覧セル押下を検知すると、`StickerSelectionState` の選択中シールを更新し、UI の選択ハイライトを切り替える。
-4. `TapStickerPlacer` は `StickerSelectionState` から現在の選択中シール定義を参照する。
-5. `TapStickerPlacer` は選択中シールがある場合のみ、選択中 prefab を元にプレビューと配置生成を行う。
-6. `TapStickerPlacer` は UI 上のポインタ操作中は配置入力を無視する。
-7. `SealPhaseController` が `StickerPlacement -> StickerPeeling` へ遷移すると、`HudScreenBinder` は所持シール一覧を非表示にする。
-8. `SealPhaseController` が `StickerPeeling -> StickerPlacement` へ遷移すると、`HudScreenBinder` と `StickerSelectionState` は選択状態を解除し、未選択状態へ戻す。
-9. 未選択状態ではプレビューを非表示にし、クリックまたはタップしてもシールは生成しない。
+1. シーン開始時、`FairyCatalogSource` が Inspector 登録済みの妖精一覧を保持する。
+2. `TapStickerPlacer` がシール配置時に `FairyCatalogSource` から妖精一覧を取得する。
+3. `FairyWeightedRandomSelector` が有効な妖精定義だけを対象に総 weight を計算し、重み付きで 1 体を選ぶ。
+4. 選ばれた妖精があれば `StickerFairyAssignment` を作成し、なければ妖精なしとして扱う。
+5. `TapStickerPlacer` が `StickerRuntimeRegistry.Register(sticker, assignment)` を呼び、シール参照と割当情報を保存する。
+6. `assignment` が妖精ありなら `KiraKiraEffect` をシールへ付与する。
+7. `PeelSticker3D` が剥がし完了時に `StickerRuntimeRegistry.TryConsumeFairy()` を呼び、対象シールの割当情報を 1 回だけ取り出す。
+8. 妖精割当が存在する場合、`FairyCollectionService` が獲得済み判定を更新し、新規発見かどうかを返す。
+9. `FairyDiscoveryLogger` が妖精名付きのログを出力する。
+10. フェーズ遷移でシールを全消去したときは `StickerRuntimeRegistry` だけをクリアし、獲得済み情報はセッション中維持する。
 
 ## 処理詳細
 
-### シール定義と所持品データ
-- `OwnedStickerDefinition` は `string id`、`Sprite icon` または `Texture2D iconTexture`、`PeelSticker3D stickerPrefab` を持つ。
-- 一覧セル表示は画像のみを必須とし、名称ラベルは今回のスコープに含めない。
-- `OwnedStickerInventorySource` は将来の所持品管理データ接続を前提に、`IReadOnlyList<OwnedStickerDefinition>` を返す API を持つ。
-- 実装初期段階では、所持品管理データの実体が未整備なら、将来差し替え可能な仮実装クラスを 1 箇所に閉じ込める。
+### 妖精定義データ
+- `FairyDefinition` は `[System.Serializable]` なデータクラスとする。
+- 持たせる項目は以下。
+- `string id`
+- `string displayName`
+- `int weight`
+- `Sprite icon` など将来 UI 表示で使う参照
+- `weight <= 0`、`id` 空文字、null 要素は抽選対象外とする。
 
-### 選択状態
-- 起動直後の `StickerPlacement` 開始時のみ、一覧先頭を自動選択する。
-- `StickerPeeling` へ遷移した時点では、一覧は非表示にするが選択状態は保持してよい。
-- `StickerPlacement` に戻る遷移時に明示的に選択解除し、再開直後は未選択状態とする。
-- 未選択状態ではプレビュー非表示、配置不可、一覧上のハイライトなしを一貫させる。
-- 同じセルを再タップしても未選択に戻さず、そのまま選択維持とする。
+### 妖精カタログ供給
+- `FairyCatalogSource` は `List<FairyDefinition>` を SerializeField で保持する。
+- 公開 API は `IReadOnlyList<FairyDefinition> GetFairies()` とする。
+- UI や他機能から再利用できるよう、抽選責務は持たせない。
 
-### UI 構造
-- `HudScreen.uxml` に `bottom-left-sticker-panel` と `sticker-scroll-view` を追加する。
-- スクロール内の一覧セルは `VisualElement` または `Button` をテンプレート化して動的生成する。
-- 各セルには画像表示用 `VisualElement` か `Image` を 1 つ配置し、選択中セルには class を追加してハイライトする。
-- 既存の `top-bar` と `bottom-right-menu` は維持し、左下一覧だけを追加する。
+### 重み付きランダム
+- 抽選は総 weight を使った累積方式とする。
+- 有効な妖精定義だけを集計対象にする。
+- 総 weight が 0 の場合は `null` を返す。
+- 同一妖精が複数回選ばれてよい。
 
-### 配置処理
-- `TapStickerPlacer` は `CacheTemplateSticker()` を固定テンプレート探索から選択中 prefab ベースのキャッシュへ置き換える。
-- 選択変更時にプレビュー用インスタンスを差し替える必要があるため、現在のプレビューオブジェクトを破棄して新しい選択中シールから再生成する責務を持たせる。
-- 配置時の妖精判定と `StickerRuntimeRegistry.Register` は現在のまま維持し、シール種類が増えても registry の責務は変更しない。
-- 配置済みシールをクリックした際の配置抑止ロジック `IsPointerOverSticker` は継続利用する。
+### 配置済みシール割当
+- `StickerRuntimeRegistry` は以下を保持する。
+- `Dictionary<int, PeelSticker3D> stickerById`
+- `Dictionary<int, StickerFairyAssignment> assignmentByStickerId`
+- `StickerFairyAssignment` は少なくとも `FairyDefinition Fairy` と `string FairyId` を持つ。
+- `TryConsumeFairy()` はシールごとの割当を一度だけ返し、返却後に辞書から除去する。
+- 妖精なしシールは assignment 未登録、または `HasFairy == false` の割当として扱う。利用側分岐が単純な形を優先する。
 
-### フェーズ連携
-- `HubScreenBinder` は `SealPhaseEventHub.PhaseChanged` をすでに購読しているため、一覧表示制御も同クラスへ集約する。
-- 既存の `ready-button` 文言更新に加えて、`StickerPlacement` なら一覧表示、`StickerPeeling` なら非表示を更新する。
-- `StickerPlacement` 再入時の選択解除は、`HubScreenBinder` から `StickerSelectionState.ClearSelection()` を呼ぶ。
+### 獲得状態管理
+- `FairyCollectionState` は `HashSet<string>` を用いて獲得済み妖精 ID を保持する。
+- `FairyCollectionService` は `TryRegisterDiscovery(FairyDefinition fairy, out bool isNewDiscovery)` のような API を持つ。
+- 新規獲得時のみ ID を追加し、再発見時は状態を変えない。
+- 起動中のみ状態を保持し、Play 再開始時は初期化されるよう `RuntimeInitializeOnLoadMethod` を使う。
+- 将来的に `PlayerPrefs` を導入する場合も、このサービスだけ差し替えれば済むようにする。
+
+### 発見ログ
+- `FairyDiscoveryLogger` は `LogDiscovered(FairyDefinition fairy, bool isNewDiscovery)` を持つ。
+- ログには必ず妖精名を含める。
+- 新規発見と既発見で Console 上の文面を明確に分ける。
+- 最終文言は実装時に調整するが、判別可能性を落とさない。
+
+### フェーズ遷移との整合
+- [SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs) の `ClearRemainingStickers()` は現状どおり `StickerRuntimeRegistry.ClearAll()` を呼ぶ。
+- ここでは配置済みシールとその妖精割当だけを破棄し、獲得済み情報は消さない。
+- 全リセット機能が必要になった場合のみ、獲得状態クリア API を追加する。
 
 ## リスクと対策
-- 所持品管理データの実体が未整備のまま UI だけ先行すると、将来の接続点が破綻しやすい。
-  - 一覧取得の入口を `OwnedStickerInventorySource` に限定し、UI や配置処理は具体的な保存形式を知らない構造にする。
-- `TapStickerPlacer` は現在テンプレート探索と生成を同時に担っているため、選択変更対応を安易に足すと責務が肥大化する。
-  - 選択状態参照、プレビュー差し替え、実配置生成をメソッド分割して整理する。
-- UI Toolkit のスクロール一覧動的生成で name 依存を増やすと保守しにくい。
-  - ルート要素の固定 name は最小限にして、セル見た目は class ベースで制御する。
-- フェーズ再入時の未選択化と起動直後の先頭選択が混同されると、挙動がぶれやすい。
-  - `初回起動` と `フェーズ再入` を別トリガーで扱い、受け入れ条件に沿って切り分ける。
-- UI 上の画像セル押下がワールド配置へ伝播すると誤配置が起きる。
-  - `EventSystem` / UI Toolkit の pointer over 判定を使い、UI 操作中は `TapStickerPlacer` が即 return する。
+- `TapStickerPlacer` に抽選、割当生成、演出付与を詰め込みすぎると保守性が落ちる。
+  - 重み付き抽選と獲得状態管理は別クラス化し、`TapStickerPlacer` は配置時の組み立て役に留める。
+- 妖精データ設定ミスで `id` 空文字や `weight=0` が混ざる可能性がある。
+  - 無効データは抽選対象外にし、クラッシュや例外停止を防ぐ。
+- `StickerRuntimeRegistry` の API 変更で既存フェーズ処理が壊れる可能性がある。
+  - `GetActiveStickers()` と `ClearAll()` の契約は維持し、変更は妖精関連 API に閉じる。
+- セッション状態を static で持つ場合、Play 再実行時の残留が起こりうる。
+  - 起動初期化フックで状態を再生成する。
 
 ## 検証方針
 - 手動確認1:
-  - 起動直後の `StickerPlacement` で左下一覧が表示され、先頭シールが選択済みになっていることを確認する。
+  - Inspector から複数妖精を登録でき、各妖精に重みを設定できることを確認する。
 - 手動確認2:
-  - 一覧内の別シールを押すと選択ハイライトが切り替わり、プレビュー見た目が変わることを確認する。
+  - 妖精 0 件の状態でシール配置と剥がしを行っても例外が出ず、妖精関連ログも出ないことを確認する。
 - 手動確認3:
-  - 選択後にワールドをクリックまたはタップすると、選択したシール prefab が配置されることを確認する。
+  - 重みを変えた複数妖精を登録し、多数回の配置で重い妖精ほど出やすいことを概観確認する。
 - 手動確認4:
-  - 一覧セル押下時にワールドへシールが誤配置されないことを確認する。
+  - 初めて見つけた妖精では新規発見ログが出ることを確認する。
 - 手動確認5:
-  - `StickerPeeling` へ遷移すると一覧が非表示になることを確認する。
+  - 同じ妖精を再度見つけた場合は既発見ログに切り替わることを確認する。
 - 手動確認6:
-  - `StickerPlacement` へ戻ると選択が解除され、未選択のままでは配置されないことを確認する。
+  - 妖精ありシールでは既存の `KiraKiraEffect` が付き、妖精種別に関係なく共通演出であることを確認する。
 - 手動確認7:
-  - 再度一覧からシールを選択すると配置を再開できることを確認する。
-- 手動確認8:
-  - 所持シール 0 件でも UI が破綻せず、空状態が判別できることを確認する。
+  - フェーズ往復で配置済みシールは消えても、同一セッション中の獲得済み判定が維持されることを確認する。
 
 ## コードスニペット
 ```csharp
-public sealed class OwnedStickerDefinition
+[System.Serializable]
+public sealed class FairyDefinition
 {
-    public string Id;
-    public Sprite Icon;
-    public PeelSticker3D StickerPrefab;
+    [SerializeField] private string id;
+    [SerializeField] private string displayName;
+    [SerializeField, Min(0)] private int weight = 1;
+
+    public string Id => id;
+    public string DisplayName => displayName;
+    public int Weight => weight;
 }
 ```
 
 ```csharp
-public sealed class StickerSelectionState
+public static class FairyWeightedRandomSelector
 {
-    public IReadOnlyList<OwnedStickerDefinition> OwnedStickers { get; private set; }
-    public OwnedStickerDefinition SelectedSticker { get; private set; }
-
-    public void SelectInitialSticker()
+    public static FairyDefinition Select(IReadOnlyList<FairyDefinition> fairies)
     {
-        SelectedSticker = OwnedStickers.Count > 0 ? OwnedStickers[0] : null;
-    }
+        int totalWeight = 0;
+        foreach (FairyDefinition fairy in fairies)
+        {
+            if (fairy == null || string.IsNullOrWhiteSpace(fairy.Id) || fairy.Weight <= 0)
+            {
+                continue;
+            }
 
-    public void ClearSelection()
-    {
-        SelectedSticker = null;
+            totalWeight += fairy.Weight;
+        }
+
+        if (totalWeight <= 0)
+        {
+            return null;
+        }
+
+        int roll = Random.Range(0, totalWeight);
+        int accumulated = 0;
+        foreach (FairyDefinition fairy in fairies)
+        {
+            if (fairy == null || string.IsNullOrWhiteSpace(fairy.Id) || fairy.Weight <= 0)
+            {
+                continue;
+            }
+
+            accumulated += fairy.Weight;
+            if (roll < accumulated)
+            {
+                return fairy;
+            }
+        }
+
+        return null;
     }
 }
 ```
 
 ```csharp
-private void Update()
+if (StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment)
+    && assignment != null
+    && assignment.HasFairy
+    && FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery))
 {
-    if (!Application.isPlaying || !isPlacementEnabled)
-    {
-        return;
-    }
-
-    if (selectionState.SelectedSticker == null)
-    {
-        return;
-    }
-
-    if (IsPointerOverUi())
-    {
-        return;
-    }
-
-    // 選択中シールのプレビュー更新と配置生成
+    FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
 }
 ```

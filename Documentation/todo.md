@@ -1,12 +1,14 @@
-# 配置シール選択機能 ToDo
+# 妖精コレクション機能 ToDo
 
-- 所持品管理データから所持シール一覧を取得するための `OwnedStickerDefinition` と `OwnedStickerInventorySource` を追加する。
-- 選択中シールと未選択状態を保持する `StickerSelectionState` を追加する。
-- `HudScreen.uxml` に左下の所持シール一覧パネルとスクロール要素を追加する。
-- `HudScreen.uss` に左下パネル、画像セル、選択ハイライト、空状態表示のスタイルを追加する。
-- `HudScreenBinder` を拡張し、所持シール一覧の動的生成、セル選択、選択状態の見た目更新、フェーズごとの表示切替を実装する。
-- `TapStickerPlacer` を拡張し、固定 `templateSticker` 依存を選択中シール定義参照へ置き換える。
-- `TapStickerPlacer` に未選択時の配置禁止、選択変更時のプレビュー差し替え、UI 操作中の入力抑止を追加する。
-- `SealPhaseController` と必要な連携先を調整し、`StickerPlacement` 再入時に選択解除されるようにする。
-- `Assets/Main.unity` の参照設定を更新し、一覧データ供給元と HUD バインダを接続する。
-- 手動確認で、起動直後の先頭選択、一覧からの選択切替、選択中シールの配置反映、`StickerPeeling` 中の一覧非表示、再入時の未選択化、UI 操作中の誤配置防止、所持 0 件時の空表示を検証する。
+- `Assets/Scripts/Fairy/FairyDefinition.cs` を追加し、`id`、`displayName`、`weight` を持つ妖精定義データを作成する。
+- `Assets/Scripts/Fairy/FairyCatalogSource.cs` を追加し、Inspector から複数妖精を設定できる `MonoBehaviour` を作成する。
+- `Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs` を追加し、重み付きランダム抽選ロジックを実装する。
+- `Assets/Scripts/Fairy/StickerFairyAssignment.cs` を追加し、シール単位の妖精割当情報を表現する。
+- `Assets/Scripts/StickerRuntimeRegistry.cs` を更新し、`bool hasFairy` ではなく妖精割当情報を保持・消費できるようにする。
+- `Assets/Scripts/Fairy/FairyCollectionState.cs` を追加し、セッション中の獲得済み妖精 ID を保持できるようにする。
+- `Assets/Scripts/Fairy/FairyCollectionService.cs` を追加し、将来の保存差し替えを見据えた獲得状態の読み書き窓口を用意する。
+- `Assets/Scripts/Fairy/FairyDiscoveryLogger.cs` を追加し、新規発見/既発見のログ出力を分けられるようにする。
+- `Assets/Scripts/TapStickerPlacer.cs` を更新し、妖精カタログ参照、重み付き抽選、割当登録へ置き換える。
+- `Assets/Scripts/PeelSticker3D.cs` を更新し、剥がし完了時に割当妖精を消費し、獲得状態更新とログ出力を行うようにする。
+- `Assets/Main.unity` を更新し、`FairyCatalogSource` をシーンへ追加して `TapStickerPlacer` から参照させる。
+- 手動確認で、複数妖精登録、重み付き出現、0 件時の無ログ動作、新規発見ログ、既発見ログ、セッション中の獲得状態保持を検証する。
