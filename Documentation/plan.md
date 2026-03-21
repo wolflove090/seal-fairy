@@ -1,218 +1,137 @@
-# シール配置からシールめくりへのフェーズ遷移 実装計画
+# 配置シール選択機能 実装計画
 
 ## 実装方針
-- 既存の [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) と [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/PeelSticker3D.cs) は大きく作り直さず、入力受付可否だけを共通フェーズ状態から切り替える。
-- フェーズ状態、UI ボタン連携、配置済みシールの一括削除は新規の進行管理コンポーネントに集約し、個別コンポーネントへ状態を分散させない。
-- UI は既存の [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml) の右上ボタン `ready-button` を流用し、クリックはイベント中継クラス経由で通知する。
-- `StickerPeeling` から `StickerPlacement` に戻る際の未めくりシール全削除を成立させるため、配置済みシールの追跡 API を `StickerRuntimeRegistry` か専用管理クラスに追加する。
-- `SealPhaseEventHub` は `MonoBehaviour` にせず plain C# class とし、Unity 依存は composition root である `MonoBehaviour` 側へ閉じ込める。
-- 今回は最小実装を優先し、残数表示、プレビュー、専用ドメイン層分割までは行わない。
+- 既存の配置処理は [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs) に集約されているため、今回も配置入口は維持しつつ、固定 `templateSticker` 依存を「現在選択中のシール定義」参照へ置き換える。
+- UI は既存の [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml) と [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss) を拡張し、左下のスクロール一覧を追加する。
+- フェーズ連携は既存の [SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs) と [HubScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) を利用し、`StickerPlacement` のときだけ一覧表示、`StickerPeeling` では非表示にする。
+- 所持シール一覧は Inspector の固定配列ではなく、所持品管理データを参照する構造を前提にする。ただし現段階のコードベースには所持品管理クラスが未存在のため、追加するデータ供給コンポーネントの責務を明確にして接続点を先に定義する。
+- フェーズ再入時は一覧の選択状態を解除し、未選択時は配置しない。起動直後の初期表示のみ一覧先頭を選択状態にする。
+- UI クリックとワールド配置の競合を避けるため、一覧セル押下中は既存の配置入力経路を通さないガードを入れる。
 
 ## 変更対象ファイル一覧
 
-### 新規作成予定
-- `Assets/Scripts/SealGamePhase.cs`
-  - `StickerPlacement` と `StickerPeeling` を表す enum。
-- `Assets/Scripts/SealPhaseEventHub.cs`
-  - UI からのフェーズ切替要求イベントと、フェーズ変更通知イベントを仲介する plain C# class。
-- `Assets/Scripts/SealPhaseController.cs`
-  - 現在フェーズ管理、イベント購読、各コンポーネントへの有効 / 無効反映、配置済みシール全削除を担当する。
-- `Assets/Scripts/HudScreenBinder.cs`
-  - UI Toolkit の `UIDocument` から `ready-button` を取得し、クリック時に `SealPhaseEventHub` をトリガーする。
-  - `SealPhaseEventHub` が発行するフェーズ変更通知を受けて文言更新する。
-- `Assets/Scripts/SealPhaseBootstrap.cs`
-  - `SealPhaseEventHub` を生成し、`HudScreenBinder` と `SealPhaseController` へ同一インスタンスを注入する composition root。
-
 ### 更新予定
-- `Assets/Scripts/TapStickerPlacer.cs`
-  - 配置入力をフェーズ依存で有効 / 無効化できる public API を追加する。
-  - 生成したシールをフェーズ管理側が追跡できるよう登録経路を整理する。
-- `Assets/Scripts/PeelSticker3D.cs`
-  - めくり入力をフェーズ依存で有効 / 無効化できる public API を追加する。
-  - めくり中 / めくり完了後の重複入力ガードを維持しつつ、外部から強制削除できるようにする。
-- `Assets/Scripts/StickerRuntimeRegistry.cs`
-  - 妖精有無に加えて配置済みシール参照を追跡し、全削除や個別解除に使える API を追加する。
-- `Assets/UI/UXML/HudScreen.uxml`
-  - 必要最小限でフェーズ表示に使う既存ボタン名の確認のみ。構造変更が必要な場合だけ最小差分で修正する。
-- `Assets/Main.unity`
-  - `UIDocument`、bootstrap、フェーズ制御コンポーネントの配置、参照設定を追加する。
+- [Assets/Scripts/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/TapStickerPlacer.cs)
+  - 選択中シール定義からプレビュー元と生成 prefab を取得するよう変更する。
+  - 未選択時は配置処理を行わないようにする。
+  - UI 操作中の入力無効化を追加する。
+- [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
+  - 左下のスクロール一覧、一覧セル、選択状態表示、フェーズ切替時の表示制御を担当する。
+  - `SealPhaseEventHub` の通知を受けて一覧の表示/非表示と選択解除を行う。
+- [Assets/UI/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/UXML/HudScreen.uxml)
+  - 左下の所持シール一覧コンテナとスクロール要素を追加する。
+- [Assets/UI/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/USS/HudScreen.uss)
+  - 左下パネル、スクロール、画像セル、選択ハイライトの見た目を追加する。
+- [Assets/Scripts/Phase/SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs)
+  - `StickerPlacement` 再入時に一覧選択解除の通知ができるよう、必要なら phase change 以外のイベントまたは初期化呼び出しを追加する。
+- [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
+  - 所持シールデータ供給コンポーネントや画像参照の接続が必要なら参照設定を追加する。
+
+### 新規作成予定
+- `Assets/Scripts/StickerSelection/OwnedStickerDefinition.cs`
+  - 一覧表示画像、識別子、配置に使う `PeelSticker3D` prefab を保持する定義データ。
+- `Assets/Scripts/StickerSelection/OwnedStickerInventorySource.cs`
+  - 所持品管理データから現在の所持シール一覧を取得する窓口。
+- `Assets/Scripts/StickerSelection/StickerSelectionState.cs`
+  - 現在の一覧、選択中シール、初回選択済みフラグ、未選択状態を管理する。
 
 ## データフロー / 処理フロー
-1. 起動時に `SealPhaseController` が初期フェーズを `StickerPlacement` に設定する。
-2. `SealPhaseBootstrap` が `SealPhaseEventHub` を生成し、`HudScreenBinder` と `SealPhaseController` に同じインスタンスを渡す。
-3. `SealPhaseController` は `TapStickerPlacer` に配置入力有効、`PeelSticker3D` 群にめくり入力無効を反映する。
-4. プレイヤーが画面をクリック / タップすると、`TapStickerPlacer` は有効時のみ既存処理でシールを生成する。
-5. 生成したシールは `StickerRuntimeRegistry` に妖精情報と実体参照の両方を登録する。
-6. `HudScreenBinder` が `ready-button` クリックを受けると、`SealPhaseEventHub` にフェーズ切替要求イベントを発火する。
-7. `SealPhaseController` は `SealPhaseEventHub` のフェーズ切替要求イベントを購読し、`StickerPlacement -> StickerPeeling` 遷移時に配置入力を無効化し、登録済みシールのめくり入力を有効化する。
-8. `StickerPeeling` 中は `PeelSticker3D` が既存の自動めくり処理を行い、配置入力は無視される。
-9. `StickerPeeling -> StickerPlacement` 遷移時、`SealPhaseController` は registry から未破棄シールを列挙して全削除する。
-10. 全削除後に `SealPhaseController` は配置入力を再有効化し、めくり入力を無効化する。
-11. `SealPhaseController` はフェーズ確定後に `SealPhaseEventHub` へ変更通知を発火し、`HudScreenBinder` がそれを受けて右上ボタン文言を更新する。
+1. 起動時に `OwnedStickerInventorySource` が所持品管理データから所持シール一覧を取得する。
+2. `HudScreenBinder` は一覧データを使って左下スクロール UI を構築し、起動直後のみ先頭シールを選択状態にする。
+3. `HudScreenBinder` が一覧セル押下を検知すると、`StickerSelectionState` の選択中シールを更新し、UI の選択ハイライトを切り替える。
+4. `TapStickerPlacer` は `StickerSelectionState` から現在の選択中シール定義を参照する。
+5. `TapStickerPlacer` は選択中シールがある場合のみ、選択中 prefab を元にプレビューと配置生成を行う。
+6. `TapStickerPlacer` は UI 上のポインタ操作中は配置入力を無視する。
+7. `SealPhaseController` が `StickerPlacement -> StickerPeeling` へ遷移すると、`HudScreenBinder` は所持シール一覧を非表示にする。
+8. `SealPhaseController` が `StickerPeeling -> StickerPlacement` へ遷移すると、`HudScreenBinder` と `StickerSelectionState` は選択状態を解除し、未選択状態へ戻す。
+9. 未選択状態ではプレビューを非表示にし、クリックまたはタップしてもシールは生成しない。
 
 ## 処理詳細
 
-### フェーズ状態
-- `SealGamePhase` は `StickerPlacement` / `StickerPeeling` の 2 値だけを持つ。
-- 現在フェーズは `SealPhaseController.CurrentPhase` で一元管理する。
-- フェーズ変更 API は `TogglePhase()` か `SetPhase(SealGamePhase nextPhase)` のどちらかに統一し、UI から直接個別コンポーネントを触らせない。
-- UI からの入力は `SealPhaseEventHub.RequestPhaseToggle()` のようなイベント API に限定し、`SealPhaseController` を直接参照させない。
-- `SealPhaseEventHub` の生成と共有は `SealPhaseBootstrap` が担当し、`HudScreenBinder` と `SealPhaseController` は new しない。
+### シール定義と所持品データ
+- `OwnedStickerDefinition` は `string id`、`Sprite icon` または `Texture2D iconTexture`、`PeelSticker3D stickerPrefab` を持つ。
+- 一覧セル表示は画像のみを必須とし、名称ラベルは今回のスコープに含めない。
+- `OwnedStickerInventorySource` は将来の所持品管理データ接続を前提に、`IReadOnlyList<OwnedStickerDefinition>` を返す API を持つ。
+- 実装初期段階では、所持品管理データの実体が未整備なら、将来差し替え可能な仮実装クラスを 1 箇所に閉じ込める。
 
-### 配置入力の制御
-- `TapStickerPlacer` に `SetPlacementEnabled(bool enabled)` を追加する。
-- `Update()` 冒頭でこのフラグを確認し、無効時は入力判定もシール生成も行わない。
-- 配置済みシール生成後、`SealPhaseController` または `StickerRuntimeRegistry` 経由で新規シールへ現在フェーズに応じためくり可否を反映する。
+### 選択状態
+- 起動直後の `StickerPlacement` 開始時のみ、一覧先頭を自動選択する。
+- `StickerPeeling` へ遷移した時点では、一覧は非表示にするが選択状態は保持してよい。
+- `StickerPlacement` に戻る遷移時に明示的に選択解除し、再開直後は未選択状態とする。
+- 未選択状態ではプレビュー非表示、配置不可、一覧上のハイライトなしを一貫させる。
+- 同じセルを再タップしても未選択に戻さず、そのまま選択維持とする。
 
-### めくり入力の制御
-- `PeelSticker3D` の既存 `allowTapPeel` を Inspector 専用設定として残すか、実行時有効フラグと分離する。
-- 実装では `SetTapPeelEnabled(bool enabled)` を追加し、`HandlePointer()` 実行条件を `allowTapPeel && runtimeTapPeelEnabled && !isPeelComplete` に整理する。
-- これにより、配置フェーズ中は既存シールが存在してもめくり入力を受け付けない。
+### UI 構造
+- `HudScreen.uxml` に `bottom-left-sticker-panel` と `sticker-scroll-view` を追加する。
+- スクロール内の一覧セルは `VisualElement` または `Button` をテンプレート化して動的生成する。
+- 各セルには画像表示用 `VisualElement` か `Image` を 1 つ配置し、選択中セルには class を追加してハイライトする。
+- 既存の `top-bar` と `bottom-right-menu` は維持し、左下一覧だけを追加する。
 
-### 配置済みシールの追跡と全削除
-- `StickerRuntimeRegistry` を `Dictionary<int, StickerRuntimeInfo>` のような構造へ拡張し、妖精有無と `PeelSticker3D` 参照をまとめて管理する。
-- `Register` 時にシール参照を保存し、`TryConsumeFairy` 後も実体追跡が必要なら削除責務を分離する。
-- `RemoveDestroyedSticker(PeelSticker3D sticker)` と `GetActiveStickers()` を用意し、自然破棄と強制削除の両方で整合を取る。
-- `StickerPeeling` から戻る際は、`GetActiveStickers()` の返却対象に対して `Destroy(gameObject)` を実行し、その後 registry を掃除する。
+### 配置処理
+- `TapStickerPlacer` は `CacheTemplateSticker()` を固定テンプレート探索から選択中 prefab ベースのキャッシュへ置き換える。
+- 選択変更時にプレビュー用インスタンスを差し替える必要があるため、現在のプレビューオブジェクトを破棄して新しい選択中シールから再生成する責務を持たせる。
+- 配置時の妖精判定と `StickerRuntimeRegistry.Register` は現在のまま維持し、シール種類が増えても registry の責務は変更しない。
+- 配置済みシールをクリックした際の配置抑止ロジック `IsPointerOverSticker` は継続利用する。
 
-### UI 連携
-- `HudScreenBinder` は `UIDocument.rootVisualElement` から `ready-button` を取得する。
-- ボタン押下時は `SealPhaseEventHub` のイベント発火だけを行い、フェーズ遷移ロジックは持たない。
-- ボタン文言は現在フェーズに応じて以下のどちらかに更新する。
-  - `StickerPlacement`: 例 `シールめくりへ`
-  - `StickerPeeling`: 例 `シール配置へ`
-- 文言の最終確定は実装時に行うが、「現在フェーズ」と「次に行う遷移」が読める文字列にする。
-- `HudScreenBinder` は `SealPhaseEventHub` が通知する現在フェーズを受けて文言を更新する。
-- `HudScreenBinder` は UI Toolkit の参照取得失敗時に早期ログを出し、ゲーム進行の無反応化を見つけやすくする。
-
-## レイヤ別責務
-
-### 進行管理
-- `SealPhaseEventHub`
-  - フェーズ切替要求イベントを発火する
-  - フェーズ変更完了イベントを発火する
-- `SealPhaseBootstrap`
-  - `SealPhaseEventHub` を生成する
-  - `HudScreenBinder` と `SealPhaseController` に同じインスタンスを注入する
-- `SealPhaseController`
-  - 現在フェーズ管理
-  - フェーズ切替要求イベント購読
-  - 配置 / めくり入力切替
-  - 戻り時の未めくりシール全削除
-
-### シール配置
-- `TapStickerPlacer`
-  - 配置可能時のみ既存の位置計算と生成を行う
-  - 生成直後の registry 登録を継続する
-
-### シールめくり
-- `PeelSticker3D`
-  - めくり可能時のみ既存の入力処理を行う
-  - めくり完了後のログ出力、破棄、registry 解除を継続する
-
-### UI
-- `HudScreenBinder`
-  - 右上ボタン参照取得
-  - クリックでイベント中継をトリガー
-  - フェーズ文言更新
+### フェーズ連携
+- `HubScreenBinder` は `SealPhaseEventHub.PhaseChanged` をすでに購読しているため、一覧表示制御も同クラスへ集約する。
+- 既存の `ready-button` 文言更新に加えて、`StickerPlacement` なら一覧表示、`StickerPeeling` なら非表示を更新する。
+- `StickerPlacement` 再入時の選択解除は、`HubScreenBinder` から `StickerSelectionState.ClearSelection()` を呼ぶ。
 
 ## リスクと対策
-- 既存の `PeelSticker3D` は各インスタンスが自己入力を受けるため、フェーズ切替直後に取りこぼしが出る可能性がある。
-  - `SealPhaseController` が遷移時に全アクティブシールへ一括で `SetTapPeelEnabled` を反映する。
-- 配置済みシールの一覧管理が不十分だと、戻り時の全削除漏れが発生する可能性がある。
-  - registry に実体参照追跡 API を追加し、生成・自然破棄・強制削除のすべてで同じ管理経路を通す。
-- UI Toolkit のボタン取得名がシーン上の実体と不一致だと、フェーズ切替できなくなる可能性がある。
-  - `ready-button` の取得失敗時に `Debug.LogError` を出し、PlayMode 初回で即検知できるようにする。
-- イベント購読解除漏れがあると、再生停止や再読込で重複購読が発生する可能性がある。
-  - `HudScreenBinder` と `SealPhaseController` の購読登録 / 解除を `OnEnable` / `OnDisable` に揃える。
-- `SealPhaseEventHub` の共有インスタンス生成が分散すると、UI と制御側で別インスタンスを握って通信できなくなる可能性がある。
-  - 生成箇所を `SealPhaseBootstrap` の 1 箇所に固定する。
-- `StickerPeeling` から `StickerPlacement` へ戻る瞬間に、めくり完了待ちシールと強制削除が競合する可能性がある。
-  - 強制削除時は完了状態を問わず `Destroy` を優先し、registry 側は null 安全に掃除できる API にする。
+- 所持品管理データの実体が未整備のまま UI だけ先行すると、将来の接続点が破綻しやすい。
+  - 一覧取得の入口を `OwnedStickerInventorySource` に限定し、UI や配置処理は具体的な保存形式を知らない構造にする。
+- `TapStickerPlacer` は現在テンプレート探索と生成を同時に担っているため、選択変更対応を安易に足すと責務が肥大化する。
+  - 選択状態参照、プレビュー差し替え、実配置生成をメソッド分割して整理する。
+- UI Toolkit のスクロール一覧動的生成で name 依存を増やすと保守しにくい。
+  - ルート要素の固定 name は最小限にして、セル見た目は class ベースで制御する。
+- フェーズ再入時の未選択化と起動直後の先頭選択が混同されると、挙動がぶれやすい。
+  - `初回起動` と `フェーズ再入` を別トリガーで扱い、受け入れ条件に沿って切り分ける。
+- UI 上の画像セル押下がワールド配置へ伝播すると誤配置が起きる。
+  - `EventSystem` / UI Toolkit の pointer over 判定を使い、UI 操作中は `TapStickerPlacer` が即 return する。
 
 ## 検証方針
 - 手動確認1:
-  - 起動直後にシール配置ができ、既存シールをクリックしてもめくれないことを確認する。
+  - 起動直後の `StickerPlacement` で左下一覧が表示され、先頭シールが選択済みになっていることを確認する。
 - 手動確認2:
-  - 右上ボタン押下で `StickerPeeling` に遷移し、新規配置ができなくなることを確認する。
+  - 一覧内の別シールを押すと選択ハイライトが切り替わり、プレビュー見た目が変わることを確認する。
 - 手動確認3:
-  - `StickerPeeling` 中に配置済みシールだけがめくれることを確認する。
+  - 選択後にワールドをクリックまたはタップすると、選択したシール prefab が配置されることを確認する。
 - 手動確認4:
-  - `StickerPeeling` 中に未配置領域をクリックしても新規シールが増えないことを確認する。
+  - 一覧セル押下時にワールドへシールが誤配置されないことを確認する。
 - 手動確認5:
-  - `StickerPeeling` 中に右上ボタンを押すと `StickerPlacement` に戻り、未めくりシールが全削除されることを確認する。
+  - `StickerPeeling` へ遷移すると一覧が非表示になることを確認する。
 - 手動確認6:
-  - フェーズごとに右上ボタン文言が切り替わることを確認する。
+  - `StickerPlacement` へ戻ると選択が解除され、未選択のままでは配置されないことを確認する。
 - 手動確認7:
-  - 妖精ありシールをめくったときの既存ログや挙動がフェーズ導入後も壊れていないことを確認する。
+  - 再度一覧からシールを選択すると配置を再開できることを確認する。
+- 手動確認8:
+  - 所持シール 0 件でも UI が破綻せず、空状態が判別できることを確認する。
 
 ## コードスニペット
 ```csharp
-public enum SealGamePhase
+public sealed class OwnedStickerDefinition
 {
-    StickerPlacement,
-    StickerPeeling
+    public string Id;
+    public Sprite Icon;
+    public PeelSticker3D StickerPrefab;
 }
 ```
 
 ```csharp
-public sealed class SealPhaseEventHub
+public sealed class StickerSelectionState
 {
-    public event Action PhaseToggleRequested;
-    public event Action<SealGamePhase> PhaseChanged;
+    public IReadOnlyList<OwnedStickerDefinition> OwnedStickers { get; private set; }
+    public OwnedStickerDefinition SelectedSticker { get; private set; }
 
-    public void RequestPhaseToggle() => PhaseToggleRequested?.Invoke();
-
-    public void NotifyPhaseChanged(SealGamePhase phase) => PhaseChanged?.Invoke(phase);
-}
-```
-
-```csharp
-public sealed class SealPhaseBootstrap : MonoBehaviour
-{
-    [SerializeField] private HudScreenBinder hudScreenBinder;
-    [SerializeField] private SealPhaseController sealPhaseController;
-
-    private void Awake()
+    public void SelectInitialSticker()
     {
-        var eventHub = new SealPhaseEventHub();
-        hudScreenBinder.Initialize(eventHub);
-        sealPhaseController.Initialize(eventHub);
-    }
-}
-```
-
-```csharp
-public sealed class SealPhaseController : MonoBehaviour
-{
-    public SealGamePhase CurrentPhase { get; private set; } = SealGamePhase.StickerPlacement;
-    private SealPhaseEventHub eventHub;
-
-    public void Initialize(SealPhaseEventHub eventHub)
-    {
-        this.eventHub = eventHub;
+        SelectedSticker = OwnedStickers.Count > 0 ? OwnedStickers[0] : null;
     }
 
-    private void OnEnable()
+    public void ClearSelection()
     {
-        eventHub.PhaseToggleRequested += HandlePhaseToggleRequested;
-    }
-
-    private void OnDisable()
-    {
-        eventHub.PhaseToggleRequested -= HandlePhaseToggleRequested;
-    }
-
-    private void HandlePhaseToggleRequested()
-    {
-        if (CurrentPhase == SealGamePhase.StickerPlacement)
-        {
-            SetPhase(SealGamePhase.StickerPeeling);
-            return;
-        }
-
-        ClearRemainingStickers();
-        SetPhase(SealGamePhase.StickerPlacement);
+        SelectedSticker = null;
     }
 }
 ```
@@ -225,13 +144,16 @@ private void Update()
         return;
     }
 
-    // 既存の配置入力処理
-}
-```
+    if (selectionState.SelectedSticker == null)
+    {
+        return;
+    }
 
-```csharp
-public void SetTapPeelEnabled(bool enabled)
-{
-    runtimeTapPeelEnabled = enabled;
+    if (IsPointerOverUi())
+    {
+        return;
+    }
+
+    // 選択中シールのプレビュー更新と配置生成
 }
 ```
