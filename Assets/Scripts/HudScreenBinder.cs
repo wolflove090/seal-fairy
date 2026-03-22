@@ -114,6 +114,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         UpdateMoneyLabels();
         UpdateReadyButtonLabel();
         UpdateStickerPanelVisibility();
+        UpdateAuxiliaryButtonVisibility();
         SubscribeToEventHub();
     }
 
@@ -421,6 +422,13 @@ public sealed class HubScreenBinder : MonoBehaviour
         currentPhase = phase;
         UpdateReadyButtonLabel();
         UpdateStickerPanelVisibility();
+        UpdateAuxiliaryButtonVisibility();
+
+        if (currentPhase == SealGamePhase.StickerPeeling)
+        {
+            CloseFairyCollection();
+            CloseStickerShop();
+        }
 
         if(returnedToPlacement)
         {
@@ -436,6 +444,21 @@ public sealed class HubScreenBinder : MonoBehaviour
             return;
 
         stickerPanel.style.display = currentPhase == SealGamePhase.StickerPlacement ? DisplayStyle.Flex : DisplayStyle.None;
+    }
+
+    private void UpdateAuxiliaryButtonVisibility()
+    {
+        DisplayStyle display = currentPhase == SealGamePhase.StickerPlacement ? DisplayStyle.Flex : DisplayStyle.None;
+
+        if (fairyButton != null)
+        {
+            fairyButton.style.display = display;
+        }
+
+        if (shopButton != null)
+        {
+            shopButton.style.display = display;
+        }
     }
 
     private void UpdateReadyButtonLabel()

@@ -14,8 +14,8 @@
             <ui:ScrollView name="sticker-scroll-view" mode="Vertical" />
         </ui:VisualElement>
         <ui:VisualElement name="bottom-right-menu">
-            <ui:Button name="fairy-button" text="妖精"/>
             <ui:Button name="shop-button" text="ショップ"/>
+            <ui:Button name="fairy-button" text="妖精"/>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>
