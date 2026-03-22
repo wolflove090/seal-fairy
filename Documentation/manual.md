@@ -1,210 +1,174 @@
-# シールショップ機能 作業手順書
+# 所持金付きシールショップ機能 作業手順書
 
 ## 目的
-- ゲーム開始時の所持シールを 0 件にする。
-- ショップでシールカードを押したら、そのシールを所持一覧へ追加する。
-- 購入時に所持金減算は行わない。
-- 初回購入後も自動選択はせず、所持一覧から選ぶまで未選択のままにする。
-- 重複購入を許可し、新規購入シールは所持一覧の先頭に追加する。
+- 初期所持金を 1000 円で開始する。
+- HUD 左上とショップフッターに現在の所持金を表示する。
+- シールごとに価格を設定し、ショップカードへ表示する。
+- 購入時に所持金を減算し、残高不足のシールはグレーアウトして購入不可にする。
+- 購入成功後に所持金表示と所持シール一覧を即時更新する。
 
 ## 変更対象
-- [Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs)
-- [Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs)
+- [Assets/Scripts/Sticker/StickerDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerDefinition.cs)
+- [Assets/Scripts/Currency/CurrencyBalanceSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Currency/CurrencyBalanceSource.cs)
 - [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
+- [Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss)
 - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
 
-## 手順1: 所持データへ購入追加 API を作る
-1. [OwnedStickerInventorySource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs) を開く。
-2. `GetOwnedStickers()` は維持したまま、先頭追加メソッドを追加する。
-3. 引数が `null` の場合は何もしない。
-4. 追加順は `Insert(0, sticker)` にする。
+## 手順1: StickerDefinition に価格を追加する
+1. [StickerDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerDefinition.cs) を開く。
+2. `stickerPrefab` の下に価格フィールドを追加する。
+3. 価格は Inspector から設定できるように `SerializeField` を付ける。
+4. 公開プロパティは負値を返さないようにする。
 
-### 実装コード
+### 変更後コード
 ```csharp
-using System.Collections.Generic;
 using UnityEngine;
 
-public sealed class OwnedStickerInventorySource : MonoBehaviour
+[System.Serializable]
+public sealed class StickerDefinition
 {
-    [SerializeField] private List<StickerDefinition> ownedStickers = new();
+    [SerializeField] private string id;
+    [SerializeField] private string displayName;
+    [SerializeField] private Sprite icon;
+    [SerializeField] private PeelSticker3D stickerPrefab;
+    [SerializeField] private int price = 100;
 
-    public IReadOnlyList<StickerDefinition> GetOwnedStickers()
+    public string Id => id;
+    public string DisplayName => displayName;
+    public Sprite Icon => icon;
+    public PeelSticker3D StickerPrefab => stickerPrefab;
+    public int Price => Mathf.Max(0, price);
+}
+```
+
+## 手順2: 所持金データソースを新規作成する
+1. `Assets/Scripts` 配下に `Currency` フォルダを作る。
+2. [CurrencyBalanceSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Currency/CurrencyBalanceSource.cs) を新規作成する。
+3. 初期値 1000 円、現在残高、変更通知イベント、減算 API を持たせる。
+4. `TrySpend` は残高不足と負値入力を拒否する。
+
+### 新規ファイルコード
+```csharp
+using System;
+using UnityEngine;
+
+[DisallowMultipleComponent]
+public sealed class CurrencyBalanceSource : MonoBehaviour
+{
+    [SerializeField] private int startingBalance = 1000;
+
+    public event Action<int> BalanceChanged;
+
+    public int CurrentBalance { get; private set; }
+
+    private void Awake()
     {
-        return ownedStickers;
+        CurrentBalance = Mathf.Max(0, startingBalance);
     }
 
-    public void AddOwnedStickerToFront(StickerDefinition sticker)
+    public bool TrySpend(int amount)
     {
-        if (sticker == null)
+        if (amount < 0)
         {
-            return;
+            return false;
         }
 
-        ownedStickers.Insert(0, sticker);
+        if (CurrentBalance < amount)
+        {
+            return false;
+        }
+
+        CurrentBalance -= amount;
+        BalanceChanged?.Invoke(CurrentBalance);
+        return true;
     }
 }
 ```
 
-## 手順2: 選択状態の自動初期選択を見直す
-1. [StickerSelectionState.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs) を開く。
-2. `SelectInitialSticker()` は残してもよいが、今回の実装では購入後や初回表示で呼ばない前提にする。
-3. このファイル自体に変更を入れない場合も、[HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) 側で `SelectInitialSticker()` を使わないことを確認する。
-
-### 現状維持コード
-```csharp
-public sealed class StickerSelectionState
-{
-    public IReadOnlyList<StickerDefinition> OwnedStickers { get; private set; }
-    public StickerDefinition SelectedSticker { get; private set; }
-
-    public void SetOwnedStickers(IReadOnlyList<StickerDefinition> ownedStickers)
-    {
-        OwnedStickers = ownedStickers;
-    }
-
-    public void SelectInitialSticker()
-    {
-        SelectedSticker = OwnedStickers != null && OwnedStickers.Count > 0 ? OwnedStickers[0] : null;
-    }
-
-    public void Select(StickerDefinition sticker)
-    {
-        SelectedSticker = sticker;
-    }
-
-    public void ClearSelection()
-    {
-        SelectedSticker = null;
-    }
-}
-```
-
-## 手順3: HudScreenBinder の所持一覧追跡構造を変更する
+## 手順3: HudScreenBinder に所持金表示更新処理を追加する
 1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) を開く。
-2. `private readonly Dictionary<StickerDefinition, VisualElement> stickerCellByDefinition = new();` を削除する。
-3. 重複購入対応のため、同じ `StickerDefinition` を複数持てる構造に置き換える。
+2. `CurrencyBalanceSource` 参照用 `SerializeField` を追加する。
+3. `moneyLabel` フィールドを追加する。
+4. `OnEnable()` で `money-label` を取得する。
+5. `OnEnable()` の末尾で `UpdateMoneyLabels()` を呼ぶ。
+6. `OnDisable()` では所持金イベント購読を解除する。
 
-### 置き換えコード
+### 追加するフィールド
 ```csharp
-private readonly List<(StickerDefinition sticker, VisualElement cell)> stickerCells = new();
+[SerializeField] private CurrencyBalanceSource currencyBalanceSource;
+
+private Label moneyLabel;
 ```
 
-## 手順4: BuildStickerList を購入仕様に合わせて書き換える
-1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `BuildStickerList()` を丸ごと差し替える。
-2. 初期所持 0 件では空表示を出し、選択は未選択のままにする。
-3. 一覧がある場合でも `SelectInitialSticker()` は呼ばない。
-4. 再構築前に現在選択中の `StickerDefinition` を退避し、再構築後もまだ所持していれば維持する。
-5. ただし未選択時はそのまま未選択を維持する。
+### OnEnable の追加箇所
+```csharp
+moneyLabel = root.Q<Label>("money-label");
+UpdateMoneyLabels();
+SubscribeToCurrencySource();
+```
+
+### OnDisable の追加箇所
+```csharp
+UnsubscribeFromCurrencySource();
+```
+
+### 追加メソッド
+```csharp
+private void SubscribeToCurrencySource()
+{
+    if (currencyBalanceSource == null)
+    {
+        Debug.LogError("CurrencyBalanceSource が設定されていません");
+        return;
+    }
+
+    currencyBalanceSource.BalanceChanged += HandleBalanceChanged;
+}
+
+private void UnsubscribeFromCurrencySource()
+{
+    if (currencyBalanceSource == null)
+    {
+        return;
+    }
+
+    currencyBalanceSource.BalanceChanged -= HandleBalanceChanged;
+}
+
+private void HandleBalanceChanged(int _)
+{
+    UpdateMoneyLabels();
+
+    if (stickerShopOverlay != null && stickerShopOverlay.style.display == DisplayStyle.Flex)
+    {
+        RefreshStickerShop();
+    }
+}
+
+private void UpdateMoneyLabels()
+{
+    int balance = currencyBalanceSource != null ? currencyBalanceSource.CurrentBalance : 0;
+    string text = $"お金：{balance}円";
+
+    if (moneyLabel != null)
+    {
+        moneyLabel.text = text;
+    }
+
+    if (stickerShopMoneyLabel != null)
+    {
+        stickerShopMoneyLabel.text = text;
+    }
+}
+```
+
+## 手順4: ショップカードに価格表示と購入可否判定を追加する
+1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateStickerShopCard()` を差し替える。
+2. 名前ラベルの下に価格ラベルを追加する。
+3. 現在残高と価格を比較して `canPurchase` を算出する。
+4. 購入不可カードには `sticker-shop-card--disabled` クラスを付与し、`SetEnabled(false)` を適用する。
 
 ### 差し替えコード
-```csharp
-private void BuildStickerList()
-{
-    stickerCells.Clear();
-    stickerScrollView.Clear();
-
-    IReadOnlyList<StickerDefinition> ownedStickers = inventorySource != null
-        ? inventorySource.GetOwnedStickers()
-        : null;
-
-    StickerDefinition currentSelected = selectionState.SelectedSticker;
-    selectionState.SetOwnedStickers(ownedStickers);
-
-    if (ownedStickers == null || ownedStickers.Count == 0)
-    {
-        selectionState.ClearSelection();
-
-        if (emptyStickerListLabel != null)
-        {
-            emptyStickerListLabel.style.display = DisplayStyle.Flex;
-        }
-
-        return;
-    }
-
-    if (emptyStickerListLabel != null)
-    {
-        emptyStickerListLabel.style.display = DisplayStyle.None;
-    }
-
-    foreach (StickerDefinition sticker in ownedStickers)
-    {
-        Button cell = CreateStickerCell(sticker);
-        stickerCells.Add((sticker, cell));
-        stickerScrollView.Add(cell);
-    }
-
-    bool stillOwned = false;
-    foreach (StickerDefinition ownedSticker in ownedStickers)
-    {
-        if (ownedSticker == currentSelected)
-        {
-            stillOwned = true;
-            break;
-        }
-    }
-
-    if (currentSelected != null && stillOwned)
-    {
-        selectionState.Select(currentSelected);
-    }
-    else
-    {
-        selectionState.ClearSelection();
-    }
-
-    RefreshSelectionVisuals();
-}
-```
-
-## 手順5: CreateStickerCell と RefreshSelectionVisuals を重複購入対応にする
-1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `RefreshSelectionVisuals()` を差し替える。
-2. 同一 `StickerDefinition` を複数所持した場合、同じ定義のカードがすべて選択状態になる現状は許容しない。
-3. 厳密に 1 枚だけ選択表示したい場合は、`SelectedSticker` だけでは識別できないため将来はインスタンス ID 管理が必要になる。
-4. 今回は定義参照ベースで進める場合、同一シール複数所持時に複数ハイライトになるリスクを把握したうえで実装する。
-
-### 最低限の差し替えコード
-```csharp
-private void RefreshSelectionVisuals()
-{
-    foreach ((StickerDefinition sticker, VisualElement cell) in stickerCells)
-    {
-        cell.EnableInClassList("sticker-cell--selected", selectionState.SelectedSticker == sticker);
-    }
-}
-```
-
-## 手順6: ショップカード押下を購入処理へ変更する
-1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に `HandleStickerShopItemClicked(StickerDefinition item)` を追加する。
-2. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateStickerShopCard()` 内のクリック処理を差し替える。
-3. 購入時は以下の順で処理する。
-   - `item` と `inventorySource` を null チェック
-   - `inventorySource.AddOwnedStickerToFront(item)`
-   - `Debug.Log($"ショップ購入: {displayName}")`
-   - `BuildStickerList()`
-4. ショップ画面は閉じない。
-
-### 追加コード
-```csharp
-private void HandleStickerShopItemClicked(StickerDefinition item)
-{
-    if (item == null || inventorySource == null)
-    {
-        return;
-    }
-
-    inventorySource.AddOwnedStickerToFront(item);
-
-    string displayName = string.IsNullOrWhiteSpace(item.DisplayName)
-        ? "名称未設定"
-        : item.DisplayName;
-
-    Debug.Log($"ショップ購入: {displayName}");
-    BuildStickerList();
-}
-```
-
-### 置き換えコード
 ```csharp
 private Button CreateStickerShopCard(StickerDefinition item)
 {
@@ -222,33 +186,111 @@ private Button CreateStickerShopCard(StickerDefinition item)
     name.AddToClassList("sticker-shop-card__name");
     name.text = string.IsNullOrWhiteSpace(item?.DisplayName) ? "名称未設定" : item.DisplayName;
 
+    Label price = new();
+    price.AddToClassList("sticker-shop-card__price");
+    price.text = item != null ? $"{item.Price}円" : "0円";
+
+    bool canPurchase =
+        item != null &&
+        currencyBalanceSource != null &&
+        currencyBalanceSource.CurrentBalance >= item.Price;
+
     card.Add(image);
     card.Add(name);
-    card.clicked += () => HandleStickerShopItemClicked(item);
+    card.Add(price);
+    card.EnableInClassList("sticker-shop-card--disabled", !canPurchase);
+    card.SetEnabled(canPurchase);
+
+    if (canPurchase)
+    {
+        card.clicked += () => HandleStickerShopItemClicked(item);
+    }
+
     return card;
 }
 ```
 
-## 手順7: Main.unity の初期値を変更する
+## 手順5: 購入処理を所持金減算つきに更新する
+1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `HandleStickerShopItemClicked()` を差し替える。
+2. `currencyBalanceSource.TrySpend(item.Price)` 成功時のみ所持シール追加へ進める。
+3. ログにはシール名、価格、購入後残高を含める。
+4. 購入後にショップ一覧を再描画して、残高不足カードの見た目を更新する。
+
+### 差し替えコード
+```csharp
+private void HandleStickerShopItemClicked(StickerDefinition item)
+{
+    if (item == null || inventorySource == null || currencyBalanceSource == null)
+    {
+        return;
+    }
+
+    if (!currencyBalanceSource.TrySpend(item.Price))
+    {
+        return;
+    }
+
+    inventorySource.AddOwnedStickerToFront(item);
+
+    string displayName = string.IsNullOrWhiteSpace(item.DisplayName)
+        ? "名称未設定"
+        : item.DisplayName;
+
+    Debug.Log($"ショップ購入: {displayName} / {item.Price}円 / 残高 {currencyBalanceSource.CurrentBalance}円");
+    RefreshStickerShop();
+}
+```
+
+## 手順6: StickerShopScreen.uss に価格表示とグレーアウトスタイルを追加する
+1. [StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss) を開く。
+2. `sticker-shop-card__price` 用スタイルを追加する。
+3. `sticker-shop-card--disabled` 用スタイルを追加する。
+4. disabled 時は背景色、文字色、画像 opacity を落とす。
+
+### 追加コード
+```css
+.sticker-shop-card__price {
+    margin-top: 12px;
+    font-size: 26px;
+    color: rgb(50, 50, 50);
+    -unity-text-align: middle-center;
+}
+
+.sticker-shop-card--disabled {
+    background-color: rgb(210, 210, 210);
+}
+
+.sticker-shop-card--disabled .sticker-shop-card__image {
+    opacity: 0.45;
+}
+
+.sticker-shop-card--disabled .sticker-shop-card__name,
+.sticker-shop-card--disabled .sticker-shop-card__price {
+    color: rgb(120, 120, 120);
+}
+```
+
+## 手順7: Main.unity の参照と価格を設定する
 1. Unity Editor で [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を開く。
-2. `OwnedStickerInventorySource` を持つ GameObject を選択する。
-3. `Owned Stickers` の配列サイズを `0` にする。
-4. `StickerShopCatalogSource` を持つ GameObject を選択する。
-5. `Items` に販売対象の `StickerDefinition` を設定する。
-6. `HubScreenBinder` の `Inventory Source` と `Sticker Shop Catalog Source` と `Sticker Shop Screen Asset` が正しく割り当たっていることを確認する。
+2. 適切な GameObject に `CurrencyBalanceSource` を追加する。
+3. `Starting Balance` を `1000` に設定する。
+4. `HubScreenBinder` の `Currency Balance Source` にそのコンポーネントを割り当てる。
+5. `StickerShopCatalogSource` が参照する各 `StickerDefinition` の `Price` を設定する。
+6. HUD 左上の `money-label` とショップフッターの `sticker-shop-money-label` が既存 UXML 名のままであることを確認する。
 
 ## 手順8: 手動確認を行う
-1. 起動直後に HUD 左下へ `所持シールがありません` が表示されることを確認する。
-2. 所持 0 件のまま `Ready` を押してフェーズ遷移できることを確認する。
-3. `ショップ` を開き、任意のシールを購入すると所持一覧先頭に追加されることを確認する。
-4. 初回購入直後は何も選択されず、画面タップしても配置されないことを確認する。
-5. 所持一覧の購入済みシールを押すと選択状態になり、その後は配置できることを確認する。
-6. 別シールを選択中に追加購入しても、選択中シールが変わらないことを確認する。
-7. 同じシールを複数回購入すると、同じカードが複数件並ぶことを確認する。
-8. Console に `ショップ購入: シール名` が出ることを確認する。
-9. 購入時に所持金表示が変わらないことを確認する。
-10. ショップ画面は購入後も開いたままで、`閉じる` または背景押下で閉じることを確認する。
+1. 起動直後に HUD 左上が `お金：1000円` になることを確認する。
+2. `ショップ` を開き、フッターも `お金：1000円` を表示することを確認する。
+3. 各販売シールカードに価格が表示されることを確認する。
+4. 1000 円より高いシールがグレーアウトし、押せないことを確認する。
+5. 300 円のシール購入後に HUD とショップフッターが `お金：700円` になることを確認する。
+6. 購入成功時に所持一覧先頭へシールが追加されることを確認する。
+7. 残高不足になったカードが、その場でグレーアウトへ切り替わることを確認する。
+8. 残高不足カード押下で所持一覧と残高が変わらないことを確認する。
+9. 同じシールを複数回購入すると、価格分ずつ残高が減り、所持数が増えることを確認する。
+10. `Ready` によるフェーズ遷移と妖精コレクション画面が既存どおり動作することを確認する。
 
 ## 注意点
-- 現状の `StickerSelectionState` は `StickerDefinition` 参照で選択を保持しているため、同一定義を複数所持した場合の「どの 1 枚が選択されているか」の区別はできない。
-- 今回の要件達成だけなら購入と配置は成立するが、見た目の選択ハイライトを厳密に 1 枚へ限定したい場合は、将来 `StickerDefinition` とは別に所持インスタンス ID が必要になる。
+- `StickerDefinition` に価格を持たせるため、販売対象ではないシール定義にも価格欄が表示される。今回は構成簡素化を優先し、この設計を採用する。
+- `CurrencyBalanceSource` は永続化を持たないため、シーン再読み込みで初期値 1000 円へ戻る。
+- 同一定義のシール重複購入時、選択ハイライトの厳密な 1 枚識別までは今回の作業対象外。
