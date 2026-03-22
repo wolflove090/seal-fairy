@@ -4663,34 +4663,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OwnedStickerInventorySource
   ownedStickers:
-  - id: 1
-    displayName: 
-    icon: {fileID: 21300000, guid: af4aad52d1c9a409ca7e7b69b9106d40, type: 3}
-    stickerPrefab: {fileID: 8262903522750432225, guid: 108466ea1b3d946a8bba36b16df78710, type: 3}
-  - id: 2
-    displayName: 
-    icon: {fileID: 21300000, guid: e426b796c43314335a7908dfe0a8e65b, type: 3}
-    stickerPrefab: {fileID: 8262903522750432225, guid: 79c91f5308b8e48f0b1d111e9faec60a, type: 3}
-  - id: 3
-    displayName: 
-    icon: {fileID: 21300000, guid: 974ff83b3a1ae404388f77bac49887ce, type: 3}
-    stickerPrefab: {fileID: 8262903522750432225, guid: 6fe479ff0fb3d4fbd89f0681540055ca, type: 3}
-  - id: 4
-    displayName: 
-    icon: {fileID: 21300000, guid: 974ff83b3a1ae404388f77bac49887ce, type: 3}
-    stickerPrefab: {fileID: 8262903522750432225, guid: 6fe479ff0fb3d4fbd89f0681540055ca, type: 3}
-  - id: 5
-    displayName: 
-    icon: {fileID: 21300000, guid: 974ff83b3a1ae404388f77bac49887ce, type: 3}
-    stickerPrefab: {fileID: 8262903522750432225, guid: 6fe479ff0fb3d4fbd89f0681540055ca, type: 3}
-  - id: 6
-    displayName: 
-    icon: {fileID: 21300000, guid: 974ff83b3a1ae404388f77bac49887ce, type: 3}
-    stickerPrefab: {fileID: 8262903522750432225, guid: 6fe479ff0fb3d4fbd89f0681540055ca, type: 3}
-  - id: 7
-    displayName: 
-    icon: {fileID: 21300000, guid: 974ff83b3a1ae404388f77bac49887ce, type: 3}
-    stickerPrefab: {fileID: 8262903522750432225, guid: 6fe479ff0fb3d4fbd89f0681540055ca, type: 3}
 --- !u!4 &1283893950
 Transform:
   m_ObjectHideFlags: 0

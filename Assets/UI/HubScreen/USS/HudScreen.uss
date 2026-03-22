@@ -114,6 +114,7 @@
     border-right-color: rgba(0, 0, 0, 0);
     border-top-color: rgba(0, 0, 0, 0);
     border-bottom-color: rgba(0, 0, 0, 0);
+    position: relative;
 }
 
 .sticker-cell--selected {
@@ -131,6 +132,25 @@
     background-repeat: no-repeat;
     background-position-x: center;
     background-position-y: center;
+}
+
+.sticker-cell__count {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    min-width: 32px;
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    background-color: rgba(0, 0, 0, 0.72);
+    color: rgb(255, 255, 255);
+    font-size: 20px;
+    -unity-text-align: middle-center;
+    border-top-left-radius: 999px;
+    border-top-right-radius: 999px;
+    border-bottom-left-radius: 999px;
+    border-bottom-right-radius: 999px;
 }
 
 #empty-sticker-list-label {

@@ -12,7 +12,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     [SerializeField] private VisualTreeAsset stickerShopScreenAsset;
 
     private readonly StickerSelectionState selectionState = new();
-    private readonly Dictionary<StickerDefinition, VisualElement> stickerCellByDefinition = new();
+    private readonly List<(StickerDefinition sticker, VisualElement cell)> stickerCells = new();
 
     private SealPhaseEventHub eventHub;
     private Button readyButton;
@@ -36,10 +36,10 @@ public sealed class HubScreenBinder : MonoBehaviour
     private Label stickerShopMoneyLabel;
     private Button stickerShopCloseButton;
     private bool isSubscribed;
-    private bool hasAppliedInitialSelection;
     private SealGamePhase currentPhase = SealGamePhase.StickerPlacement;
 
     public StickerSelectionState SelectionState => selectionState;
+    public OwnedStickerInventorySource InventorySource => inventorySource;
 
     public void Initialize(SealPhaseEventHub eventHub)
     {
@@ -51,6 +51,8 @@ public sealed class HubScreenBinder : MonoBehaviour
 
     private void OnEnable()
     {
+        SubscribeToInventorySource();
+
         VisualElement root = uiDocument.rootVisualElement;
         readyButton = root.Q<Button>("ready-button");
         fairyButton = root.Q<Button>("fairy-button");
@@ -113,6 +115,8 @@ public sealed class HubScreenBinder : MonoBehaviour
 
     private void OnDisable()
     {
+        UnsubscribeFromInventorySource();
+
         if (readyButton != null)
         {
             readyButton.clicked -= HandleReadyButtonClicked;
@@ -225,56 +229,89 @@ public sealed class HubScreenBinder : MonoBehaviour
 
     private void BuildStickerList()
     {
-        stickerCellByDefinition.Clear();
+        stickerCells.Clear();
         stickerScrollView.Clear();
 
         IReadOnlyList<StickerDefinition> ownedStickers = inventorySource != null ? inventorySource.GetOwnedStickers() : null;
-
+        StickerDefinition currentSelected = selectionState.SelectedSticker;
         selectionState.SetOwnedStickers(ownedStickers);
 
-        if(ownedStickers == null || ownedStickers.Count == 0)
+        if (ownedStickers == null || ownedStickers.Count == 0)
         {
-            if(emptyStickerListLabel != null)
+            selectionState.ClearSelection();
+
+            if (emptyStickerListLabel != null)
             {
                 emptyStickerListLabel.style.display = DisplayStyle.Flex;
             }
+
             return;
         }
 
-        if(emptyStickerListLabel != null)
+        if (emptyStickerListLabel != null)
         {
             emptyStickerListLabel.style.display = DisplayStyle.None;
         }
 
-        foreach(StickerDefinition sticker in ownedStickers)
+        foreach (StickerDefinition sticker in ownedStickers)
         {
             Button cell = CreateStickerCell(sticker);
-            stickerCellByDefinition.Add(sticker, cell);
+            stickerCells.Add((sticker, cell));
             stickerScrollView.Add(cell);
         }
 
-        if(!hasAppliedInitialSelection)
+        bool stillOwned = false;
+        foreach (StickerDefinition ownedSticker in ownedStickers)
         {
-            selectionState.SelectInitialSticker();
-            hasAppliedInitialSelection = true;
+            if (ownedSticker == currentSelected)
+            {
+                stillOwned = true;
+                break;
+            }
+        }
+
+        if (currentSelected != null && stillOwned)
+        {
+            selectionState.Select(currentSelected);
+        }
+        else
+        {
+            selectionState.ClearSelection();
         }
 
         RefreshSelectionVisuals();
+    }
+
+    private void HandleOwnedStickersChanged()
+    {
+        if (!isActiveAndEnabled || stickerScrollView == null)
+        {
+            return;
+        }
+
+        BuildStickerList();
     }
 
     private Button CreateStickerCell(StickerDefinition sticker)
     {
         Button cell = new();
         cell.AddToClassList("sticker-cell");
+        cell.tooltip = string.IsNullOrWhiteSpace(sticker?.DisplayName) ? "名称未設定" : sticker.DisplayName;
 
         VisualElement image = new();
         image.AddToClassList("sticker-cell__image");
-        if(sticker.Icon != null)
+        if (sticker != null && sticker.Icon != null)
         {
             image.style.backgroundImage = new StyleBackground(sticker.Icon.texture);
         }
 
+        Label countLabel = new();
+        countLabel.AddToClassList("sticker-cell__count");
+        int count = inventorySource != null ? inventorySource.GetOwnedStickerCount(sticker) : 0;
+        countLabel.text = $"x{count}";
+
         cell.Add(image);
+        cell.Add(countLabel);
         cell.clicked += () => HandleStickerCellClicked(sticker);
         return cell;
     }
@@ -287,7 +324,7 @@ public sealed class HubScreenBinder : MonoBehaviour
 
     private void RefreshSelectionVisuals()
     {
-        foreach((StickerDefinition sticker, VisualElement cell) in stickerCellByDefinition)
+        foreach ((StickerDefinition sticker, VisualElement cell) in stickerCells)
         {
             cell.EnableInClassList("sticker-cell--selected", selectionState.SelectedSticker == sticker);
         }
@@ -398,8 +435,24 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         card.Add(image);
         card.Add(name);
-        card.clicked += () => Debug.Log($"ショップシール選択: {name.text}");
+        card.clicked += () => HandleStickerShopItemClicked(item);
         return card;
+    }
+
+    private void HandleStickerShopItemClicked(StickerDefinition item)
+    {
+        if (item == null || inventorySource == null)
+        {
+            return;
+        }
+
+        inventorySource.AddOwnedStickerToFront(item);
+
+        string displayName = string.IsNullOrWhiteSpace(item.DisplayName)
+            ? "名称未設定"
+            : item.DisplayName;
+
+        Debug.Log($"ショップ購入: {displayName}");
     }
 
     // ========== 妖精一覧 ========== //
@@ -505,5 +558,26 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         eventHub.PhaseChanged -= HandlePhaseChanged;
         isSubscribed = false;
+    }
+
+    private void SubscribeToInventorySource()
+    {
+        if (inventorySource == null)
+        {
+            return;
+        }
+
+        inventorySource.OwnedStickersChanged -= HandleOwnedStickersChanged;
+        inventorySource.OwnedStickersChanged += HandleOwnedStickersChanged;
+    }
+
+    private void UnsubscribeFromInventorySource()
+    {
+        if (inventorySource == null)
+        {
+            return;
+        }
+
+        inventorySource.OwnedStickersChanged -= HandleOwnedStickersChanged;
     }
 }

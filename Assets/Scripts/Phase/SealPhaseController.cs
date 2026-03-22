@@ -22,6 +22,11 @@ public sealed class SealPhaseController : MonoBehaviour
         tapStickerPlacer.SetSelectionState(selectionState);
     }
 
+    public void SetInventorySource(OwnedStickerInventorySource inventorySource)
+    {
+        tapStickerPlacer.SetInventorySource(inventorySource);
+    }
+
     private void OnEnable()
     {
         SubscribeToEventHub();

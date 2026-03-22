@@ -14,6 +14,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
     [SerializeField] private FairyCatalogSource fairyCatalogSource;
     private PeelSticker3D templateSourceSticker;
     private StickerSelectionState selectionState;
+    private OwnedStickerInventorySource inventorySource;
 
     private bool isPlacementEnabled = true;
 
@@ -25,6 +26,11 @@ public sealed class TapStickerPlacer : MonoBehaviour
     public void SetSelectionState(StickerSelectionState selectionState)
     {
         this.selectionState = selectionState;
+    }
+
+    public void SetInventorySource(OwnedStickerInventorySource inventorySource)
+    {
+        this.inventorySource = inventorySource;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -89,7 +95,9 @@ public sealed class TapStickerPlacer : MonoBehaviour
             return;
         }
 
+        StickerDefinition selectedSticker = selectionState.SelectedSticker;
         SpawnSticker(worldPoint);
+        inventorySource?.RemoveOwnedSticker(selectedSticker);
     }
 
     private void OnDestroy()
