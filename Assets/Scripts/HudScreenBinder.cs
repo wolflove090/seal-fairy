@@ -10,6 +10,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     [SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
     [SerializeField] private StickerShopCatalogSource stickerShopCatalogSource;
     [SerializeField] private VisualTreeAsset stickerShopScreenAsset;
+    [SerializeField] private CurrencyBalanceSource currencyBalanceSource;
 
     private readonly StickerSelectionState selectionState = new();
     private readonly List<(StickerDefinition sticker, VisualElement cell)> stickerCells = new();
@@ -21,6 +22,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     private VisualElement stickerPanel;
     private ScrollView stickerScrollView;
     private Label emptyStickerListLabel;
+    private Label moneyLabel;
     private VisualElement fairyCollectionOverlay;
     private Button fairyCollectionBackdrop;
     private VisualElement fairyCollectionPanel;
@@ -51,8 +53,6 @@ public sealed class HubScreenBinder : MonoBehaviour
 
     private void OnEnable()
     {
-        SubscribeToInventorySource();
-
         VisualElement root = uiDocument.rootVisualElement;
         readyButton = root.Q<Button>("ready-button");
         fairyButton = root.Q<Button>("fairy-button");
@@ -60,6 +60,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         stickerPanel = root.Q<VisualElement>("bottom-left-sticker-panel");
         stickerScrollView = root.Q<ScrollView>("sticker-scroll-view");
         emptyStickerListLabel = root.Q<Label>("empty-sticker-list-label");
+        moneyLabel = root.Q<Label>("money-label");
 
         if (readyButton == null)
         {
@@ -107,7 +108,10 @@ public sealed class HubScreenBinder : MonoBehaviour
             stickerShopBackdrop.clicked += CloseStickerShop;
         }
 
+        SubscribeToInventorySource();
+        SubscribeToCurrencySource();
         BuildStickerList();
+        UpdateMoneyLabels();
         UpdateReadyButtonLabel();
         UpdateStickerPanelVisibility();
         SubscribeToEventHub();
@@ -116,6 +120,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     private void OnDisable()
     {
         UnsubscribeFromInventorySource();
+        UnsubscribeFromCurrencySource();
 
         if (readyButton != null)
         {
@@ -292,6 +297,80 @@ public sealed class HubScreenBinder : MonoBehaviour
         BuildStickerList();
     }
 
+    private void SubscribeToCurrencySource()
+    {
+        if (currencyBalanceSource == null)
+        {
+            Debug.LogError("CurrencyBalanceSource が設定されていません");
+            return;
+        }
+
+        currencyBalanceSource.BalanceChanged -= HandleBalanceChanged;
+        currencyBalanceSource.BalanceChanged += HandleBalanceChanged;
+    }
+
+    private void UnsubscribeFromCurrencySource()
+    {
+        if (currencyBalanceSource == null)
+        {
+            return;
+        }
+
+        currencyBalanceSource.BalanceChanged -= HandleBalanceChanged;
+    }
+
+    private void HandleBalanceChanged(int _)
+    {
+        UpdateMoneyLabels();
+
+        if (stickerShopOverlay != null && stickerShopOverlay.style.display == DisplayStyle.Flex)
+        {
+            RefreshStickerShop();
+        }
+    }
+
+    private void UpdateMoneyLabels()
+    {
+        RefreshMoneyLabelReferences();
+
+        int balance = currencyBalanceSource != null ? currencyBalanceSource.CurrentBalance : 0;
+        string text = $"お金：{balance}円";
+
+        if (moneyLabel != null)
+        {
+            moneyLabel.text = text;
+        }
+
+        if (stickerShopMoneyLabel != null)
+        {
+            stickerShopMoneyLabel.text = text;
+        }
+    }
+
+    private void RefreshMoneyLabelReferences()
+    {
+        if (uiDocument == null)
+        {
+            return;
+        }
+
+        VisualElement root = uiDocument.rootVisualElement;
+        if (root == null)
+        {
+            return;
+        }
+
+        if (moneyLabel == null || moneyLabel.panel == null)
+        {
+            moneyLabel = root.Q<Label>("money-label");
+        }
+
+        if (stickerShopMoneyLabel == null || stickerShopMoneyLabel.panel == null)
+        {
+            stickerShopMoneyLabel = root.Q<Label>("sticker-shop-money-label");
+        }
+    }
+
     private Button CreateStickerCell(StickerDefinition sticker)
     {
         Button cell = new();
@@ -345,6 +424,7 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         if(returnedToPlacement)
         {
+            currencyBalanceSource?.TryAdd(500);
             selectionState.ClearSelection();
             RefreshSelectionVisuals();
         }
@@ -378,6 +458,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         CloseFairyCollection();
+        UpdateMoneyLabels();
         RefreshStickerShop();
         stickerShopOverlay.style.display = DisplayStyle.Flex;
     }
@@ -406,10 +487,12 @@ public sealed class HubScreenBinder : MonoBehaviour
         if (items == null || items.Count == 0)
         {
             stickerShopEmptyLabel.style.display = DisplayStyle.Flex;
+            UpdateMoneyLabels();
             return;
         }
 
         stickerShopEmptyLabel.style.display = DisplayStyle.None;
+        UpdateMoneyLabels();
 
         foreach (StickerDefinition item in items)
         {
@@ -433,15 +516,37 @@ public sealed class HubScreenBinder : MonoBehaviour
         name.AddToClassList("sticker-shop-card__name");
         name.text = string.IsNullOrWhiteSpace(item?.DisplayName) ? "名称未設定" : item.DisplayName;
 
+        Label price = new();
+        price.AddToClassList("sticker-shop-card__price");
+        price.text = item != null ? $"{item.Price}円" : "0円";
+
+        bool canPurchase =
+            item != null &&
+            currencyBalanceSource != null &&
+            currencyBalanceSource.CurrentBalance >= item.Price;
+
         card.Add(image);
         card.Add(name);
-        card.clicked += () => HandleStickerShopItemClicked(item);
+        card.Add(price);
+        card.EnableInClassList("sticker-shop-card--disabled", !canPurchase);
+        card.SetEnabled(canPurchase);
+
+        if (canPurchase)
+        {
+            card.clicked += () => HandleStickerShopItemClicked(item);
+        }
+
         return card;
     }
 
     private void HandleStickerShopItemClicked(StickerDefinition item)
     {
-        if (item == null || inventorySource == null)
+        if (item == null || inventorySource == null || currencyBalanceSource == null)
+        {
+            return;
+        }
+
+        if (!currencyBalanceSource.TrySpend(item.Price))
         {
             return;
         }
@@ -452,7 +557,8 @@ public sealed class HubScreenBinder : MonoBehaviour
             ? "名称未設定"
             : item.DisplayName;
 
-        Debug.Log($"ショップ購入: {displayName}");
+        Debug.Log($"ショップ購入: {displayName} / {item.Price}円 / 残高 {currencyBalanceSource.CurrentBalance}円");
+        RefreshStickerShop();
     }
 
     // ========== 妖精一覧 ========== //

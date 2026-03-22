@@ -115,6 +115,13 @@
     white-space: normal;
 }
 
+.sticker-shop-card__price {
+    margin-top: 12px;
+    font-size: 26px;
+    color: rgb(50, 50, 50);
+    -unity-text-align: middle-center;
+}
+
 .sticker-shop-card:hover {
     background-color: rgb(230, 230, 230);
 }
@@ -122,4 +129,26 @@
 .sticker-shop-card:active {
     background-color: rgb(210, 210, 210);
     scale: 0.98;
+}
+
+.sticker-shop-card--disabled {
+    background-color: rgb(210, 210, 210);
+}
+
+.sticker-shop-card--disabled:hover {
+    background-color: rgb(210, 210, 210);
+}
+
+.sticker-shop-card--disabled:active {
+    background-color: rgb(210, 210, 210);
+    scale: 1;
+}
+
+.sticker-shop-card--disabled .sticker-shop-card__name,
+.sticker-shop-card--disabled .sticker-shop-card__price {
+    color: rgb(125, 125, 125);
+}
+
+.sticker-shop-card--disabled .sticker-shop-card__image {
+    opacity: 0.45;
 }
