@@ -2,10 +2,10 @@ using System.Collections.Generic;
 
 public sealed class StickerSelectionState
 {
-    public IReadOnlyList<OwnedStickerDefinition> OwnedStickers {get; private set;}
-    public OwnedStickerDefinition SelectedSticker {get; private set;}
+    public IReadOnlyList<StickerDefinition> OwnedStickers {get; private set;}
+    public StickerDefinition SelectedSticker {get; private set;}
 
-    public void SetOwnedStickers(IReadOnlyList<OwnedStickerDefinition> ownedStickers)
+    public void SetOwnedStickers(IReadOnlyList<StickerDefinition> ownedStickers)
     {
         OwnedStickers = ownedStickers;
     }
@@ -15,7 +15,7 @@ public sealed class StickerSelectionState
         SelectedSticker = OwnedStickers != null && OwnedStickers.Count > 0 ? OwnedStickers[0] : null;
     }
 
-    public void Select(OwnedStickerDefinition sticker)
+    public void Select(StickerDefinition sticker)
     {
         SelectedSticker = sticker;
     }

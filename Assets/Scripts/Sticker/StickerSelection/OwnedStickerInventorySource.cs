@@ -3,9 +3,9 @@ using UnityEngine;
 
 public sealed class OwnedStickerInventorySource : MonoBehaviour
 {
-    [SerializeField] private List<OwnedStickerDefinition> ownedStickers = new();
+    [SerializeField] private List<StickerDefinition> ownedStickers = new();
 
-    public IReadOnlyList<OwnedStickerDefinition>
+    public IReadOnlyList<StickerDefinition>
     GetOwnedStickers()
     {
         return ownedStickers;

@@ -10,7 +10,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     [SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
 
     private readonly StickerSelectionState selectionState = new();
-    private readonly Dictionary<OwnedStickerDefinition, VisualElement> stickerCellByDefinition = new();
+    private readonly Dictionary<StickerDefinition, VisualElement> stickerCellByDefinition = new();
 
     private SealPhaseEventHub eventHub;
     private Button readyButton;
@@ -150,7 +150,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         stickerCellByDefinition.Clear();
         stickerScrollView.Clear();
 
-        IReadOnlyList<OwnedStickerDefinition> ownedStickers = inventorySource != null ? inventorySource.GetOwnedStickers() : null;
+        IReadOnlyList<StickerDefinition> ownedStickers = inventorySource != null ? inventorySource.GetOwnedStickers() : null;
 
         selectionState.SetOwnedStickers(ownedStickers);
 
@@ -168,7 +168,7 @@ public sealed class HubScreenBinder : MonoBehaviour
             emptyStickerListLabel.style.display = DisplayStyle.None;
         }
 
-        foreach(OwnedStickerDefinition sticker in ownedStickers)
+        foreach(StickerDefinition sticker in ownedStickers)
         {
             Button cell = CreateStickerCell(sticker);
             stickerCellByDefinition.Add(sticker, cell);
@@ -184,7 +184,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         RefreshSelectionVisuals();
     }
 
-    private Button CreateStickerCell(OwnedStickerDefinition sticker)
+    private Button CreateStickerCell(StickerDefinition sticker)
     {
         Button cell = new();
         cell.AddToClassList("sticker-cell");
@@ -201,7 +201,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         return cell;
     }
 
-    private void HandleStickerCellClicked(OwnedStickerDefinition sticker)
+    private void HandleStickerCellClicked(StickerDefinition sticker)
     {
         selectionState.Select(sticker);
         RefreshSelectionVisuals();
@@ -209,7 +209,7 @@ public sealed class HubScreenBinder : MonoBehaviour
 
     private void RefreshSelectionVisuals()
     {
-        foreach((OwnedStickerDefinition sticker, VisualElement cell) in stickerCellByDefinition)
+        foreach((StickerDefinition sticker, VisualElement cell) in stickerCellByDefinition)
         {
             cell.EnableInClassList("sticker-cell--selected", selectionState.SelectedSticker == sticker);
         }
