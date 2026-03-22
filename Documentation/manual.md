@@ -1,334 +1,212 @@
 # シールショップ機能 作業手順書
 
 ## 目的
-- 最初に `OwnedStickerDefinition` のリファクタリングを行い、保持シールとショップ表示で共通利用できる基盤を整える。
-- HUD の `ショップ` ボタンから、右側オーバーレイ形式のシールショップ画面を開けるようにする。
-- ショップ画面にはシールを 3 列基準のスクロール一覧で表示する。
-- 各シールをタップした時は購入処理を行わず、シール名を `Debug.Log` に出力する。
-- UI の開閉挙動と見た目は既存の妖精コレクション UI を踏襲する。
+- ゲーム開始時の所持シールを 0 件にする。
+- ショップでシールカードを押したら、そのシールを所持一覧へ追加する。
+- 購入時に所持金減算は行わない。
+- 初回購入後も自動選択はせず、所持一覧から選ぶまで未選択のままにする。
+- 重複購入を許可し、新規購入シールは所持一覧の先頭に追加する。
 
 ## 変更対象
+- [Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs)
+- [Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs)
 - [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
-- [Assets/Scripts/StickerSelection/OwnedStickerDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerSelection/OwnedStickerDefinition.cs)
-- [Assets/Scripts/StickerShop/StickerShopCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerShop/StickerShopCatalogSource.cs)
-- [Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml)
-- [Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss)
 - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
 
-## 手順1: 共通シール定義とショップカタログを整備する
-1. `Assets/Scripts/StickerShop/` フォルダを作成する。
-2. [Assets/Scripts/StickerSelection/OwnedStickerDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerSelection/OwnedStickerDefinition.cs) を開く。
-3. 最初の作業として、このファイルを今回のリファクタ対象にする。
-4. 既存の `id`、`icon`、`stickerPrefab` に加えて `displayName` を追加する。
-5. 既存参照を壊さないよう、読み取り専用プロパティ `DisplayName` を追加する。
-6. `OwnedStickerInventorySource`、`StickerSelectionState`、`HudScreenBinder` の既存利用箇所でコンパイルエラーや参照切れが出ない前提の変更に留める。
+## 手順1: 所持データへ購入追加 API を作る
+1. [OwnedStickerInventorySource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs) を開く。
+2. `GetOwnedStickers()` は維持したまま、先頭追加メソッドを追加する。
+3. 引数が `null` の場合は何もしない。
+4. 追加順は `Insert(0, sticker)` にする。
 
-### 実装例
-```csharp
-using UnityEngine;
-
-[System.Serializable]
-public sealed class OwnedStickerDefinition
-{
-    [SerializeField] private string id;
-    [SerializeField] private string displayName;
-    [SerializeField] private Sprite icon;
-    [SerializeField] private PeelSticker3D stickerPrefab;
-
-    public string Id => id;
-    public string DisplayName => displayName;
-    public Sprite Icon => icon;
-    public PeelSticker3D StickerPrefab => stickerPrefab;
-}
-```
-
-7. [Assets/Scripts/StickerShop/StickerShopCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/StickerShop/StickerShopCatalogSource.cs) を追加する。
-8. `MonoBehaviour` として `List<OwnedStickerDefinition>` を保持し、一覧取得メソッドを公開する。
-
-### 実装例
+### 実装コード
 ```csharp
 using System.Collections.Generic;
 using UnityEngine;
 
-[DisallowMultipleComponent]
-public sealed class StickerShopCatalogSource : MonoBehaviour
+public sealed class OwnedStickerInventorySource : MonoBehaviour
 {
-    [SerializeField] private List<OwnedStickerDefinition> items = new();
+    [SerializeField] private List<StickerDefinition> ownedStickers = new();
 
-    public IReadOnlyList<OwnedStickerDefinition> GetItems()
+    public IReadOnlyList<StickerDefinition> GetOwnedStickers()
     {
-        return items;
+        return ownedStickers;
+    }
+
+    public void AddOwnedStickerToFront(StickerDefinition sticker)
+    {
+        if (sticker == null)
+        {
+            return;
+        }
+
+        ownedStickers.Insert(0, sticker);
     }
 }
 ```
 
-## 手順2: ショップ画面の UXML を追加する
-1. `Assets/UI/StickerShopScreen/UXML/` を作成する。
-2. [Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml) を追加する。
-3. ルート構造は妖精コレクション画面と同じ考え方にし、以下の要素名を使う。
-- `sticker-shop-overlay`
-- `sticker-shop-backdrop`
-- `sticker-shop-panel`
-- `sticker-shop-title`
-- `sticker-shop-empty-label`
-- `sticker-shop-scroll-view`
-- `sticker-shop-footer`
-- `sticker-shop-close-button`
-- `sticker-shop-money-label`
+## 手順2: 選択状態の自動初期選択を見直す
+1. [StickerSelectionState.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs) を開く。
+2. `SelectInitialSticker()` は残してもよいが、今回の実装では購入後や初回表示で呼ばない前提にする。
+3. このファイル自体に変更を入れない場合も、[HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) 側で `SelectInitialSticker()` を使わないことを確認する。
 
-### 実装例
-```xml
-<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
-    <Style src="project://database/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss" />
-    <ui:VisualElement name="sticker-shop-overlay">
-        <ui:Button name="sticker-shop-backdrop" />
-        <ui:VisualElement name="sticker-shop-panel">
-            <ui:Label name="sticker-shop-title" text="シールショップ" />
-            <ui:Label name="sticker-shop-empty-label" text="販売シールがありません" />
-            <ui:ScrollView name="sticker-shop-scroll-view" mode="Vertical" />
-            <ui:VisualElement name="sticker-shop-footer">
-                <ui:Button name="sticker-shop-close-button" text="閉じる" />
-                <ui:Label name="sticker-shop-money-label" text="お金：999円" />
-            </ui:VisualElement>
-        </ui:VisualElement>
-    </ui:VisualElement>
-</ui:UXML>
-```
-
-## 手順3: ショップ画面の USS を追加する
-1. `Assets/UI/StickerShopScreen/USS/` を作成する。
-2. [Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss) を追加する。
-3. オーバーレイと右側パネルは [Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss) を踏襲する。
-4. `ScrollView` の content container は折り返し設定を入れる。
-5. カード用 class を用意する。
-- `.sticker-shop-card`
-- `.sticker-shop-card__image`
-- `.sticker-shop-card__name`
-
-### スタイル要点
-- `#sticker-shop-overlay`: 全画面 absolute、初期 `display: none`
-- `#sticker-shop-backdrop`: 半透明グレー、枠線なし
-- `#sticker-shop-panel`: 右固定、縦並び、背景グレー
-- `#sticker-shop-scroll-view .unity-scroll-view__content-container`: `flex-direction: row` と `flex-wrap: wrap`
-- `.sticker-shop-card`: 幅固定、カード全体が押せるボタン
-- `.sticker-shop-card__image`: `-unity-background-scale-mode: scale-to-fit`
-
-### USS 全文スニペット
-```css
-#sticker-shop-overlay {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    display: none;
-}
-
-#sticker-shop-backdrop {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    background-color: rgba(128, 128, 128, 0.55);
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
-}
-
-#sticker-shop-panel {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 830px;
-    bottom: 0;
-    flex-direction: column;
-    padding: 32px;
-    background-color: rgb(217, 217, 217);
-}
-
-#sticker-shop-title {
-    margin-bottom: 20px;
-    font-size: 42px;
-    color: rgb(0, 0, 0);
-}
-
-#sticker-shop-empty-label {
-    margin-bottom: 16px;
-    font-size: 28px;
-    color: rgb(70, 70, 70);
-    white-space: normal;
-}
-
-#sticker-shop-scroll-view {
-    flex-grow: 1;
-    margin-bottom: 20px;
-    background-color: rgba(255, 255, 255, 0);
-}
-
-#sticker-shop-scroll-view .unity-scroll-view__content-container {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-content: flex-start;
-}
-
-#sticker-shop-footer {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-}
-
-#sticker-shop-close-button {
-    min-width: 180px;
-    min-height: 72px;
-    background-color: rgb(245, 245, 245);
-    color: rgb(0, 0, 0);
-    font-size: 32px;
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
-}
-
-#sticker-shop-money-label {
-    font-size: 28px;
-    color: rgb(0, 0, 0);
-}
-
-.sticker-shop-card {
-    width: 220px;
-    min-height: 300px;
-    margin-right: 20px;
-    margin-bottom: 20px;
-    padding: 20px;
-    align-items: center;
-    background-color: rgb(245, 245, 245);
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
-}
-
-.sticker-shop-card__image {
-    width: 180px;
-    height: 180px;
-    margin-bottom: 20px;
-    background-color: rgb(210, 210, 210);
-    -unity-background-scale-mode: scale-to-fit;
-    background-repeat: no-repeat;
-    background-position-x: center;
-    background-position-y: center;
-}
-
-.sticker-shop-card__name {
-    font-size: 30px;
-    color: rgb(0, 0, 0);
-    -unity-text-align: middle-center;
-    white-space: normal;
-}
-
-.sticker-shop-card:hover {
-    background-color: rgb(230, 230, 230);
-}
-
-.sticker-shop-card:active {
-    background-color: rgb(210, 210, 210);
-    scale: 0.98;
-}
-```
-
-## 手順4: HudScreenBinder にショップ機能を追加する
-1. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に以下の SerializeField を追加する。
-- `StickerShopCatalogSource stickerShopCatalogSource`
-- `VisualTreeAsset stickerShopScreenAsset`
-2. 取得済み UI 参照に `shopButton` を追加する。
-3. ショップ用の参照フィールドを追加する。
-- `VisualElement stickerShopOverlay`
-- `Button stickerShopBackdrop`
-- `VisualElement stickerShopPanel`
-- `ScrollView stickerShopScrollView`
-- `Label stickerShopEmptyLabel`
-- `Button stickerShopCloseButton`
-- `Label stickerShopMoneyLabel`
-4. `OnEnable` で `shop-button` を取得し、クリックイベントを購読する。
-5. `OnDisable` で購読解除する。
-6. `InitializeStickerShopUi(VisualElement root)` を追加し、必要に応じて `stickerShopScreenAsset.CloneTree(root)` を呼ぶ。
-7. 初期化後は `stickerShopOverlay.style.display = DisplayStyle.None;` にする。
-
-## 手順5: ショップ画面の開閉処理を実装する
-1. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に `OpenStickerShop()` を追加する。
-2. 開く前に `CloseFairyCollection()` を呼び、同時表示を防ぐ。
-3. `RefreshStickerShop()` で一覧を更新してからオーバーレイを表示する。
-4. `CloseStickerShop()` を追加し、`DisplayStyle.None` を設定する。
-5. `stickerShopCloseButton.clicked` と `stickerShopBackdrop.clicked` の両方で `CloseStickerShop()` を呼ぶ。
-
-### 実装例
+### 現状維持コード
 ```csharp
-private void OpenStickerShop()
+public sealed class StickerSelectionState
 {
-    if (stickerShopOverlay == null || stickerShopScrollView == null)
+    public IReadOnlyList<StickerDefinition> OwnedStickers { get; private set; }
+    public StickerDefinition SelectedSticker { get; private set; }
+
+    public void SetOwnedStickers(IReadOnlyList<StickerDefinition> ownedStickers)
     {
-        return;
+        OwnedStickers = ownedStickers;
     }
 
-    CloseFairyCollection();
-    RefreshStickerShop();
-    stickerShopOverlay.style.display = DisplayStyle.Flex;
-}
-
-private void CloseStickerShop()
-{
-    if (stickerShopOverlay == null)
+    public void SelectInitialSticker()
     {
-        return;
+        SelectedSticker = OwnedStickers != null && OwnedStickers.Count > 0 ? OwnedStickers[0] : null;
     }
 
-    stickerShopOverlay.style.display = DisplayStyle.None;
+    public void Select(StickerDefinition sticker)
+    {
+        SelectedSticker = sticker;
+    }
+
+    public void ClearSelection()
+    {
+        SelectedSticker = null;
+    }
 }
 ```
 
-## 手順6: ショップ一覧生成とログ出力を実装する
-1. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に `RefreshStickerShop()` を追加する。
-2. `stickerShopCatalogSource.GetItems()` から一覧取得する。
-3. `ScrollView.Clear()` 後、0 件なら空表示ラベルを出し、一覧があれば空表示を隠す。
-4. 各要素について `CreateStickerShopCard(OwnedStickerDefinition item)` を呼ぶ。
-5. カードは `Button` で生成し、カード全体クリックでログ出力する。
-6. 表示名が空なら `名称未設定`、画像が空なら画像未設定のまま表示する。
+## 手順3: HudScreenBinder の所持一覧追跡構造を変更する
+1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) を開く。
+2. `private readonly Dictionary<StickerDefinition, VisualElement> stickerCellByDefinition = new();` を削除する。
+3. 重複購入対応のため、同じ `StickerDefinition` を複数持てる構造に置き換える。
 
-### 実装例
+### 置き換えコード
 ```csharp
-private void RefreshStickerShop()
+private readonly List<(StickerDefinition sticker, VisualElement cell)> stickerCells = new();
+```
+
+## 手順4: BuildStickerList を購入仕様に合わせて書き換える
+1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `BuildStickerList()` を丸ごと差し替える。
+2. 初期所持 0 件では空表示を出し、選択は未選択のままにする。
+3. 一覧がある場合でも `SelectInitialSticker()` は呼ばない。
+4. 再構築前に現在選択中の `StickerDefinition` を退避し、再構築後もまだ所持していれば維持する。
+5. ただし未選択時はそのまま未選択を維持する。
+
+### 差し替えコード
+```csharp
+private void BuildStickerList()
 {
-    if (stickerShopScrollView == null || stickerShopEmptyLabel == null)
+    stickerCells.Clear();
+    stickerScrollView.Clear();
+
+    IReadOnlyList<StickerDefinition> ownedStickers = inventorySource != null
+        ? inventorySource.GetOwnedStickers()
+        : null;
+
+    StickerDefinition currentSelected = selectionState.SelectedSticker;
+    selectionState.SetOwnedStickers(ownedStickers);
+
+    if (ownedStickers == null || ownedStickers.Count == 0)
     {
+        selectionState.ClearSelection();
+
+        if (emptyStickerListLabel != null)
+        {
+            emptyStickerListLabel.style.display = DisplayStyle.Flex;
+        }
+
         return;
     }
 
-    IReadOnlyList<OwnedStickerDefinition> items =
-        stickerShopCatalogSource != null ? stickerShopCatalogSource.GetItems() : null;
-
-    stickerShopScrollView.Clear();
-
-    if (items == null || items.Count == 0)
+    if (emptyStickerListLabel != null)
     {
-        stickerShopEmptyLabel.style.display = DisplayStyle.Flex;
-        return;
+        emptyStickerListLabel.style.display = DisplayStyle.None;
     }
 
-    stickerShopEmptyLabel.style.display = DisplayStyle.None;
-
-    foreach (OwnedStickerDefinition item in items)
+    foreach (StickerDefinition sticker in ownedStickers)
     {
-        stickerShopScrollView.Add(CreateStickerShopCard(item));
+        Button cell = CreateStickerCell(sticker);
+        stickerCells.Add((sticker, cell));
+        stickerScrollView.Add(cell);
+    }
+
+    bool stillOwned = false;
+    foreach (StickerDefinition ownedSticker in ownedStickers)
+    {
+        if (ownedSticker == currentSelected)
+        {
+            stillOwned = true;
+            break;
+        }
+    }
+
+    if (currentSelected != null && stillOwned)
+    {
+        selectionState.Select(currentSelected);
+    }
+    else
+    {
+        selectionState.ClearSelection();
+    }
+
+    RefreshSelectionVisuals();
+}
+```
+
+## 手順5: CreateStickerCell と RefreshSelectionVisuals を重複購入対応にする
+1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `RefreshSelectionVisuals()` を差し替える。
+2. 同一 `StickerDefinition` を複数所持した場合、同じ定義のカードがすべて選択状態になる現状は許容しない。
+3. 厳密に 1 枚だけ選択表示したい場合は、`SelectedSticker` だけでは識別できないため将来はインスタンス ID 管理が必要になる。
+4. 今回は定義参照ベースで進める場合、同一シール複数所持時に複数ハイライトになるリスクを把握したうえで実装する。
+
+### 最低限の差し替えコード
+```csharp
+private void RefreshSelectionVisuals()
+{
+    foreach ((StickerDefinition sticker, VisualElement cell) in stickerCells)
+    {
+        cell.EnableInClassList("sticker-cell--selected", selectionState.SelectedSticker == sticker);
     }
 }
+```
 
-private Button CreateStickerShopCard(OwnedStickerDefinition item)
+## 手順6: ショップカード押下を購入処理へ変更する
+1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に `HandleStickerShopItemClicked(StickerDefinition item)` を追加する。
+2. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateStickerShopCard()` 内のクリック処理を差し替える。
+3. 購入時は以下の順で処理する。
+   - `item` と `inventorySource` を null チェック
+   - `inventorySource.AddOwnedStickerToFront(item)`
+   - `Debug.Log($"ショップ購入: {displayName}")`
+   - `BuildStickerList()`
+4. ショップ画面は閉じない。
+
+### 追加コード
+```csharp
+private void HandleStickerShopItemClicked(StickerDefinition item)
+{
+    if (item == null || inventorySource == null)
+    {
+        return;
+    }
+
+    inventorySource.AddOwnedStickerToFront(item);
+
+    string displayName = string.IsNullOrWhiteSpace(item.DisplayName)
+        ? "名称未設定"
+        : item.DisplayName;
+
+    Debug.Log($"ショップ購入: {displayName}");
+    BuildStickerList();
+}
+```
+
+### 置き換えコード
+```csharp
+private Button CreateStickerShopCard(StickerDefinition item)
 {
     Button card = new();
     card.AddToClassList("sticker-shop-card");
@@ -346,39 +224,31 @@ private Button CreateStickerShopCard(OwnedStickerDefinition item)
 
     card.Add(image);
     card.Add(name);
-    card.clicked += () => Debug.Log($"ショップシール選択: {name.text}");
+    card.clicked += () => HandleStickerShopItemClicked(item);
     return card;
 }
 ```
 
-## 手順7: Main.unity で参照設定を行う
-1. [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を Unity Editor で開く。
-2. `HubScreenBinder` を持つ GameObject を選択する。
-3. `stickerShopScreenAsset` に `StickerShopScreen.uxml` を設定する。
-4. `stickerShopCatalogSource` にショップデータソースを持つ GameObject を設定する。
-5. 必要なら新規 GameObject を作成して `StickerShopCatalogSource` を追加する。
-6. `items` にサンプルシールを登録する。
-- `displayName`: 画面とログに出すシール名
-- `icon`: 既存の `Assets/GameResources/Seal/` 配下の画像
-- `stickerPrefab`: 対応する prefab
-7. 再生前に `shop-button` が既存 HUD に残っていることを確認する。
+## 手順7: Main.unity の初期値を変更する
+1. Unity Editor で [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を開く。
+2. `OwnedStickerInventorySource` を持つ GameObject を選択する。
+3. `Owned Stickers` の配列サイズを `0` にする。
+4. `StickerShopCatalogSource` を持つ GameObject を選択する。
+5. `Items` に販売対象の `StickerDefinition` を設定する。
+6. `HubScreenBinder` の `Inventory Source` と `Sticker Shop Catalog Source` と `Sticker Shop Screen Asset` が正しく割り当たっていることを確認する。
 
-## 手順8: 動作確認
-1. まず Play モードで既存の所持シール一覧とシール選択が、`OwnedStickerDefinition` リファクタ後も従来どおり動くことを確認する。
-2. 続けて HUD の `ショップ` ボタンを押す。
-3. 右側にショップ画面が開くことを確認する。
-4. シールカードが 3 列基準で並ぶことを確認する。
-5. 一覧件数が多い場合はスクロールできることを確認する。
-6. 任意のカードを押し、Console に `ショップシール選択: シール名` が出ることを確認する。
-7. カード押下では購入処理や金額変更が起きないことを確認する。
-8. `閉じる` ボタンと背景押下の両方で閉じることを確認する。
-9. 妖精コレクションを開いてからショップを開き、ショップだけが表示されることを確認する。
-10. `items` を 0 件にした状態でも、空表示のままエラーなく開くことを確認する。
+## 手順8: 手動確認を行う
+1. 起動直後に HUD 左下へ `所持シールがありません` が表示されることを確認する。
+2. 所持 0 件のまま `Ready` を押してフェーズ遷移できることを確認する。
+3. `ショップ` を開き、任意のシールを購入すると所持一覧先頭に追加されることを確認する。
+4. 初回購入直後は何も選択されず、画面タップしても配置されないことを確認する。
+5. 所持一覧の購入済みシールを押すと選択状態になり、その後は配置できることを確認する。
+6. 別シールを選択中に追加購入しても、選択中シールが変わらないことを確認する。
+7. 同じシールを複数回購入すると、同じカードが複数件並ぶことを確認する。
+8. Console に `ショップ購入: シール名` が出ることを確認する。
+9. 購入時に所持金表示が変わらないことを確認する。
+10. ショップ画面は購入後も開いたままで、`閉じる` または背景押下で閉じることを確認する。
 
-## 作業時の注意
-- `OwnedStickerInventorySource` と `StickerShopCatalogSource` は役割を分けるが、個々のシール情報は共通 `OwnedStickerDefinition` を使う。
-- 実装着手順は、必ず `OwnedStickerDefinition` のリファクタリングを先に行う。
-- `HubScreenBinder` の `OnEnable` / `OnDisable` でイベント購読解除漏れを作らない。
-- `CloneTree(root)` は重複追加を避けるため、既存要素があるか先に `Q()` で確認する。
-- ショップと妖精コレクションの `name` は重複させない。
-- ログ処理は購入処理へ発展しやすい位置なので、メソッドを分けておくと次フェーズで差し替えやすい。
+## 注意点
+- 現状の `StickerSelectionState` は `StickerDefinition` 参照で選択を保持しているため、同一定義を複数所持した場合の「どの 1 枚が選択されているか」の区別はできない。
+- 今回の要件達成だけなら購入と配置は成立するが、見た目の選択ハイライトを厳密に 1 枚へ限定したい場合は、将来 `StickerDefinition` とは別に所持インスタンス ID が必要になる。
