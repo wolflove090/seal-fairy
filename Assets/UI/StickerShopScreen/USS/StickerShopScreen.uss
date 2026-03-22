@@ -1,0 +1,125 @@
+#sticker-shop-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: none;
+}
+
+#sticker-shop-backdrop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(128, 128, 128, 0.55);
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+#sticker-shop-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 830px;
+    bottom: 0;
+    flex-direction: column;
+    padding: 32px;
+    background-color: rgb(217, 217, 217);
+}
+
+#sticker-shop-title {
+    margin-bottom: 20px;
+    font-size: 42px;
+    color: rgb(0, 0, 0);
+}
+
+#sticker-shop-empty-label {
+    margin-bottom: 16px;
+    font-size: 28px;
+    color: rgb(70, 70, 70);
+    white-space: normal;
+}
+
+#sticker-shop-scroll-view {
+    flex-grow: 1;
+    margin-bottom: 20px;
+    background-color: rgba(255, 255, 255, 0);
+}
+
+#sticker-shop-scroll-view .unity-scroll-view__content-container {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: flex-start;
+}
+
+#sticker-shop-footer {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#sticker-shop-close-button {
+    min-width: 180px;
+    min-height: 72px;
+    background-color: rgb(245, 245, 245);
+    color: rgb(0, 0, 0);
+    font-size: 32px;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+#sticker-shop-money-label {
+    font-size: 28px;
+    color: rgb(0, 0, 0);
+}
+
+.sticker-shop-card {
+    width: 220px;
+    min-height: 300px;
+    margin-right: 20px;
+    margin-bottom: 20px;
+    padding: 20px;
+    align-items: center;
+    background-color: rgb(245, 245, 245);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+.sticker-shop-card__image {
+    width: 180px;
+    height: 180px;
+    margin-bottom: 20px;
+    background-color: rgb(210, 210, 210);
+    -unity-background-scale-mode: scale-to-fit;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-position-y: center;
+}
+
+.sticker-shop-card__name {
+    font-size: 30px;
+    color: rgb(0, 0, 0);
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+.sticker-shop-card:hover {
+    background-color: rgb(230, 230, 230);
+}
+
+.sticker-shop-card:active {
+    background-color: rgb(210, 210, 210);
+    scale: 0.98;
+}

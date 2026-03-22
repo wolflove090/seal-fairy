@@ -8,6 +8,8 @@ public sealed class HubScreenBinder : MonoBehaviour
     [SerializeField] private OwnedStickerInventorySource inventorySource;
     [SerializeField] private FairyCatalogSource fairyCatalogSource;
     [SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
+    [SerializeField] private StickerShopCatalogSource stickerShopCatalogSource;
+    [SerializeField] private VisualTreeAsset stickerShopScreenAsset;
 
     private readonly StickerSelectionState selectionState = new();
     private readonly Dictionary<StickerDefinition, VisualElement> stickerCellByDefinition = new();
@@ -15,6 +17,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     private SealPhaseEventHub eventHub;
     private Button readyButton;
     private Button fairyButton;
+    private Button shopButton;
     private VisualElement stickerPanel;
     private ScrollView stickerScrollView;
     private Label emptyStickerListLabel;
@@ -25,6 +28,13 @@ public sealed class HubScreenBinder : MonoBehaviour
     private Label fairyCollectionEmptyLabel;
     private Label fairyCollectionCountLabel;
     private Button fairyCollectionCloseButton;
+    private VisualElement stickerShopOverlay;
+    private Button stickerShopBackdrop;
+    private VisualElement stickerShopPanel;
+    private ScrollView stickerShopScrollView;
+    private Label stickerShopEmptyLabel;
+    private Label stickerShopMoneyLabel;
+    private Button stickerShopCloseButton;
     private bool isSubscribed;
     private bool hasAppliedInitialSelection;
     private SealGamePhase currentPhase = SealGamePhase.StickerPlacement;
@@ -44,6 +54,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         VisualElement root = uiDocument.rootVisualElement;
         readyButton = root.Q<Button>("ready-button");
         fairyButton = root.Q<Button>("fairy-button");
+        shopButton = root.Q<Button>("shop-button");
         stickerPanel = root.Q<VisualElement>("bottom-left-sticker-panel");
         stickerScrollView = root.Q<ScrollView>("sticker-scroll-view");
         emptyStickerListLabel = root.Q<Label>("empty-sticker-list-label");
@@ -61,11 +72,17 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         InitializeFairyCollectionUi(root);
+        InitializeStickerShopUi(root);
 
         readyButton.clicked += HandleReadyButtonClicked;
         if (fairyButton != null)
         {
             fairyButton.clicked += OpenFairyCollection;
+        }
+
+        if (shopButton != null)
+        {
+            shopButton.clicked += OpenStickerShop;
         }
 
         if (fairyCollectionCloseButton != null)
@@ -76,6 +93,16 @@ public sealed class HubScreenBinder : MonoBehaviour
         if (fairyCollectionBackdrop != null)
         {
             fairyCollectionBackdrop.clicked += CloseFairyCollection;
+        }
+
+        if (stickerShopCloseButton != null)
+        {
+            stickerShopCloseButton.clicked += CloseStickerShop;
+        }
+
+        if (stickerShopBackdrop != null)
+        {
+            stickerShopBackdrop.clicked += CloseStickerShop;
         }
 
         BuildStickerList();
@@ -96,6 +123,11 @@ public sealed class HubScreenBinder : MonoBehaviour
             fairyButton.clicked -= OpenFairyCollection;
         }
 
+        if (shopButton != null)
+        {
+            shopButton.clicked -= OpenStickerShop;
+        }
+
         if (fairyCollectionCloseButton != null)
         {
             fairyCollectionCloseButton.clicked -= CloseFairyCollection;
@@ -104,6 +136,16 @@ public sealed class HubScreenBinder : MonoBehaviour
         if (fairyCollectionBackdrop != null)
         {
             fairyCollectionBackdrop.clicked -= CloseFairyCollection;
+        }
+
+        if (stickerShopCloseButton != null)
+        {
+            stickerShopCloseButton.clicked -= CloseStickerShop;
+        }
+
+        if (stickerShopBackdrop != null)
+        {
+            stickerShopBackdrop.clicked -= CloseStickerShop;
         }
 
         UnsubscribeFromEventHub();
@@ -143,6 +185,42 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         fairyCollectionOverlay.style.display = DisplayStyle.None;
+    }
+
+    private void InitializeStickerShopUi(VisualElement root)
+    {
+        if (root == null || stickerShopScreenAsset == null)
+        {
+            return;
+        }
+
+        stickerShopOverlay = root.Q<VisualElement>("sticker-shop-overlay");
+        if (stickerShopOverlay == null)
+        {
+            stickerShopScreenAsset.CloneTree(root);
+            stickerShopOverlay = root.Q<VisualElement>("sticker-shop-overlay");
+        }
+
+        stickerShopBackdrop = root.Q<Button>("sticker-shop-backdrop");
+        stickerShopPanel = root.Q<VisualElement>("sticker-shop-panel");
+        stickerShopScrollView = root.Q<ScrollView>("sticker-shop-scroll-view");
+        stickerShopEmptyLabel = root.Q<Label>("sticker-shop-empty-label");
+        stickerShopMoneyLabel = root.Q<Label>("sticker-shop-money-label");
+        stickerShopCloseButton = root.Q<Button>("sticker-shop-close-button");
+
+        if (stickerShopOverlay == null ||
+            stickerShopBackdrop == null ||
+            stickerShopPanel == null ||
+            stickerShopScrollView == null ||
+            stickerShopEmptyLabel == null ||
+            stickerShopMoneyLabel == null ||
+            stickerShopCloseButton == null)
+        {
+            Debug.LogError("シールショップ UI の初期化に失敗しました");
+            return;
+        }
+
+        stickerShopOverlay.style.display = DisplayStyle.None;
     }
 
     private void BuildStickerList()
@@ -253,6 +331,79 @@ public sealed class HubScreenBinder : MonoBehaviour
         readyButton.text = currentPhase == SealGamePhase.StickerPlacement ? "シールめくりへ" : "シール配置へ";
     }
 
+    // ========== ステッカーショップ ========== //
+
+    private void OpenStickerShop()
+    {
+        if (stickerShopOverlay == null || stickerShopScrollView == null)
+        {
+            return;
+        }
+
+        CloseFairyCollection();
+        RefreshStickerShop();
+        stickerShopOverlay.style.display = DisplayStyle.Flex;
+    }
+
+    private void CloseStickerShop()
+    {
+        if (stickerShopOverlay == null)
+        {
+            return;
+        }
+
+        stickerShopOverlay.style.display = DisplayStyle.None;
+    }
+
+    private void RefreshStickerShop()
+    {
+        if (stickerShopScrollView == null || stickerShopEmptyLabel == null)
+        {
+            return;
+        }
+
+        IReadOnlyList<StickerDefinition> items = stickerShopCatalogSource != null ? stickerShopCatalogSource.GetItems() : null;
+
+        stickerShopScrollView.Clear();
+
+        if (items == null || items.Count == 0)
+        {
+            stickerShopEmptyLabel.style.display = DisplayStyle.Flex;
+            return;
+        }
+
+        stickerShopEmptyLabel.style.display = DisplayStyle.None;
+
+        foreach (StickerDefinition item in items)
+        {
+            stickerShopScrollView.Add(CreateStickerShopCard(item));
+        }
+    }
+
+    private Button CreateStickerShopCard(StickerDefinition item)
+    {
+        Button card = new();
+        card.AddToClassList("sticker-shop-card");
+
+        VisualElement image = new();
+        image.AddToClassList("sticker-shop-card__image");
+        if(item != null && item.Icon != null)
+        {
+            image.style.backgroundImage = new StyleBackground(item.Icon.texture);
+        }
+
+        Label name = new();
+        name.AddToClassList("sticker-shop-card__name");
+        name.text = string.IsNullOrWhiteSpace(item?.DisplayName) ? "名称未設定" : item.DisplayName;
+
+        card.Add(image);
+        card.Add(name);
+        card.clicked += () => Debug.Log($"ショップシール選択: {name.text}");
+        return card;
+    }
+
+    // ========== 妖精一覧 ========== //
+
     private void OpenFairyCollection()
     {
         if (fairyCollectionOverlay == null || fairyCollectionScrollView == null)
@@ -260,6 +411,7 @@ public sealed class HubScreenBinder : MonoBehaviour
             return;
         }
 
+        CloseStickerShop();
         RefreshFairyCollection();
         fairyCollectionOverlay.style.display = DisplayStyle.Flex;
     }
