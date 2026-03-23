@@ -11,9 +11,11 @@ public sealed class HubScreenBinder : MonoBehaviour
     [SerializeField] private StickerShopCatalogSource stickerShopCatalogSource;
     [SerializeField] private VisualTreeAsset stickerShopScreenAsset;
     [SerializeField] private CurrencyBalanceSource currencyBalanceSource;
+    [SerializeField] private TapStickerPlacer tapStickerPlacer;
 
     private readonly StickerSelectionState selectionState = new();
     private readonly List<(StickerDefinition sticker, VisualElement cell)> stickerCells = new();
+    private readonly Vector2 previewLabelOffset = new(20f, -52f);
 
     private SealPhaseEventHub eventHub;
     private Button readyButton;
@@ -23,6 +25,8 @@ public sealed class HubScreenBinder : MonoBehaviour
     private ScrollView stickerScrollView;
     private Label emptyStickerListLabel;
     private Label moneyLabel;
+    private VisualElement root;
+    private Label previewCountLabel;
     private VisualElement fairyCollectionOverlay;
     private Button fairyCollectionBackdrop;
     private VisualElement fairyCollectionPanel;
@@ -53,7 +57,7 @@ public sealed class HubScreenBinder : MonoBehaviour
 
     private void OnEnable()
     {
-        VisualElement root = uiDocument.rootVisualElement;
+        root = uiDocument.rootVisualElement;
         readyButton = root.Q<Button>("ready-button");
         fairyButton = root.Q<Button>("fairy-button");
         shopButton = root.Q<Button>("shop-button");
@@ -61,6 +65,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         stickerScrollView = root.Q<ScrollView>("sticker-scroll-view");
         emptyStickerListLabel = root.Q<Label>("empty-sticker-list-label");
         moneyLabel = root.Q<Label>("money-label");
+        previewCountLabel = root.Q<Label>("preview-count-label");
 
         if (readyButton == null)
         {
@@ -110,11 +115,15 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         SubscribeToInventorySource();
         SubscribeToCurrencySource();
+        SubscribeToSelectionState();
+        SubscribeToTapStickerPlacer();
         BuildStickerList();
         UpdateMoneyLabels();
         UpdateReadyButtonLabel();
         UpdateStickerPanelVisibility();
         UpdateAuxiliaryButtonVisibility();
+        UpdatePreviewCountText();
+        SetPreviewCountVisible(false);
         SubscribeToEventHub();
     }
 
@@ -122,6 +131,8 @@ public sealed class HubScreenBinder : MonoBehaviour
     {
         UnsubscribeFromInventorySource();
         UnsubscribeFromCurrencySource();
+        UnsubscribeFromSelectionState();
+        UnsubscribeFromTapStickerPlacer();
 
         if (readyButton != null)
         {
@@ -296,6 +307,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         BuildStickerList();
+        UpdatePreviewCountText();
     }
 
     private void SubscribeToCurrencySource()
@@ -399,7 +411,6 @@ public sealed class HubScreenBinder : MonoBehaviour
     private void HandleStickerCellClicked(StickerDefinition sticker)
     {
         selectionState.Select(sticker);
-        RefreshSelectionVisuals();
     }
 
     private void RefreshSelectionVisuals()
@@ -423,6 +434,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         UpdateReadyButtonLabel();
         UpdateStickerPanelVisibility();
         UpdateAuxiliaryButtonVisibility();
+        UpdatePreviewCountVisibility();
 
         if (currentPhase == SealGamePhase.StickerPeeling)
         {
@@ -434,7 +446,6 @@ public sealed class HubScreenBinder : MonoBehaviour
         {
             currencyBalanceSource?.TryAdd(500);
             selectionState.ClearSelection();
-            RefreshSelectionVisuals();
         }
     }
 
@@ -708,5 +719,135 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         inventorySource.OwnedStickersChanged -= HandleOwnedStickersChanged;
+    }
+
+    private void SubscribeToSelectionState()
+    {
+        selectionState.SelectedStickerChanged -= HandleSelectedStickerChanged;
+        selectionState.SelectedStickerChanged += HandleSelectedStickerChanged;
+    }
+
+    private void UnsubscribeFromSelectionState()
+    {
+        selectionState.SelectedStickerChanged -= HandleSelectedStickerChanged;
+    }
+
+    private void HandleSelectedStickerChanged(StickerDefinition _)
+    {
+        RefreshSelectionVisuals();
+        UpdatePreviewCountText();
+        UpdatePreviewCountVisibility();
+    }
+
+    private void SubscribeToTapStickerPlacer()
+    {
+        if (tapStickerPlacer == null)
+        {
+            tapStickerPlacer = FindAnyObjectByType<TapStickerPlacer>();
+        }
+
+        if (tapStickerPlacer == null)
+        {
+            return;
+        }
+
+        tapStickerPlacer.PreviewScreenPointChanged -= HandlePreviewScreenPointChanged;
+        tapStickerPlacer.PreviewScreenPointChanged += HandlePreviewScreenPointChanged;
+    }
+
+    private void UnsubscribeFromTapStickerPlacer()
+    {
+        if (tapStickerPlacer == null)
+        {
+            return;
+        }
+
+        tapStickerPlacer.PreviewScreenPointChanged -= HandlePreviewScreenPointChanged;
+    }
+
+    private void HandlePreviewScreenPointChanged(Vector2 screenPoint, bool visible)
+    {
+        if (previewCountLabel == null)
+        {
+            return;
+        }
+
+        if (!visible || currentPhase != SealGamePhase.StickerPlacement || selectionState.SelectedSticker == null)
+        {
+            SetPreviewCountVisible(false);
+            return;
+        }
+
+        UpdatePreviewCountText();
+        PositionPreviewCountLabel(screenPoint);
+        SetPreviewCountVisible(true);
+    }
+
+    private void UpdatePreviewCountText()
+    {
+        if (previewCountLabel == null)
+        {
+            return;
+        }
+
+        StickerDefinition selectedSticker = selectionState.SelectedSticker;
+        int count = inventorySource != null && selectedSticker != null
+            ? inventorySource.GetOwnedStickerCount(selectedSticker)
+            : 0;
+
+        previewCountLabel.text = $"残り x{count}";
+    }
+
+    private void UpdatePreviewCountVisibility()
+    {
+        bool shouldShow =
+            currentPhase == SealGamePhase.StickerPlacement &&
+            selectionState.SelectedSticker != null &&
+            inventorySource != null &&
+            inventorySource.GetOwnedStickerCount(selectionState.SelectedSticker) > 0;
+
+        if (!shouldShow)
+        {
+            SetPreviewCountVisible(false);
+        }
+    }
+
+    private void PositionPreviewCountLabel(Vector2 screenPoint)
+    {
+        if (previewCountLabel == null || root == null)
+        {
+            return;
+        }
+
+        float x = screenPoint.x + previewLabelOffset.x;
+        float y = Screen.height - screenPoint.y + previewLabelOffset.y;
+
+        float rootWidth = root.resolvedStyle.width;
+        float rootHeight = root.resolvedStyle.height;
+        float labelWidth = previewCountLabel.resolvedStyle.width;
+        float labelHeight = previewCountLabel.resolvedStyle.height;
+
+        if (!float.IsNaN(rootWidth) && rootWidth > 0f && !float.IsNaN(labelWidth) && labelWidth > 0f)
+        {
+            x = Mathf.Clamp(x, 0f, Mathf.Max(0f, rootWidth - labelWidth));
+        }
+
+        if (!float.IsNaN(rootHeight) && rootHeight > 0f && !float.IsNaN(labelHeight) && labelHeight > 0f)
+        {
+            y = Mathf.Clamp(y, 0f, Mathf.Max(0f, rootHeight - labelHeight));
+        }
+
+        previewCountLabel.style.left = x;
+        previewCountLabel.style.top = y;
+    }
+
+    private void SetPreviewCountVisible(bool visible)
+    {
+        if (previewCountLabel == null)
+        {
+            return;
+        }
+
+        previewCountLabel.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
     }
 }

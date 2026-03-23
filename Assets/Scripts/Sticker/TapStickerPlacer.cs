@@ -1,4 +1,4 @@
-//using System.Numerics;
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -18,9 +18,16 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
     private bool isPlacementEnabled = true;
 
+    public event Action<Vector2, bool> PreviewScreenPointChanged;
+
     public void SetPlacementEnabled(bool enabled)
     {
         isPlacementEnabled = enabled;
+
+        if (!isPlacementEnabled)
+        {
+            HidePreview();
+        }
     }
 
     public void SetSelectionState(StickerSelectionState selectionState)
@@ -36,7 +43,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureRuntimeInstance()
     {
-        if (Object.FindAnyObjectByType<TapStickerPlacer>() != null)
+        if (UnityEngine.Object.FindAnyObjectByType<TapStickerPlacer>() != null)
         {
             return;
         }
@@ -53,7 +60,14 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
     private void Update()
     {
-        if (!Application.isPlaying || !isPlacementEnabled)
+        if (!Application.isPlaying)
+        {
+            return;
+        }
+
+        UpdatePreview();
+
+        if (!isPlacementEnabled)
         {
             return;
         }
@@ -102,10 +116,53 @@ public sealed class TapStickerPlacer : MonoBehaviour
 
     private void OnDestroy()
     {
+        NotifyPreviewScreenPoint(Vector2.zero, false);
+
         if (templateSticker != null)
         {
             Destroy(templateSticker.gameObject);
         }
+    }
+
+    private void UpdatePreview()
+    {
+        StickerDefinition selectedSticker = selectionState?.SelectedSticker;
+        int ownedCount = inventorySource != null && selectedSticker != null
+            ? inventorySource.GetOwnedStickerCount(selectedSticker)
+            : 0;
+
+        if (!isPlacementEnabled || selectedSticker == null || ownedCount <= 0 || IsPointerOverUi())
+        {
+            HidePreview();
+            return;
+        }
+
+        Camera activeCamera = GetActiveCamera();
+        if (activeCamera == null)
+        {
+            HidePreview();
+            return;
+        }
+
+        CacheTemplateSticker();
+        if (templateSticker == null)
+        {
+            HidePreview();
+            return;
+        }
+
+        Vector3 screenPoint = Input.mousePosition;
+        if (!templateSticker.TryGetPlaneHitPoint(activeCamera, screenPoint, out Vector3 worldPoint))
+        {
+            HidePreview();
+            return;
+        }
+
+        templateSticker.transform.SetPositionAndRotation(worldPoint, templateSticker.transform.rotation);
+        templateSticker.PeelAmount = 0f;
+        templateSticker.SetTapPeelEnabled(false);
+        SetPreviewVisible(true);
+        NotifyPreviewScreenPoint(screenPoint, true);
     }
 
     private static GameObject LoadFairyEffectPrefab()
@@ -150,6 +207,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
         templateSticker.name = "Sticker Template";
         templateSticker.gameObject.SetActive(false);
         templateSticker.PeelAmount = 0f;
+        templateSticker.SetTapPeelEnabled(false);
     }
 
     private bool IsPointerOverSticker(Camera activeCamera, Vector3 screenPoint)
@@ -157,7 +215,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
         PeelSticker3D[] stickers = FindObjectsByType<PeelSticker3D>(FindObjectsSortMode.None);
         foreach (PeelSticker3D sticker in stickers)
         {
-            if (sticker == null || !sticker.gameObject.activeInHierarchy)
+            if (sticker == null || sticker == templateSticker || !sticker.gameObject.activeInHierarchy)
             {
                 continue;
             }
@@ -181,7 +239,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
         sticker.PeelAmount = 0f;
         sticker.SetTapPeelEnabled(false);
 
-        bool shouldAssignFairy = Random.value < 0.5f;
+        bool shouldAssignFairy = UnityEngine.Random.value < 0.5f;
         FairyDefinition selectedFairy = shouldAssignFairy
             ? FairyWeightedRandomSelector.Select(fairyCatalogSource.GetFairies())
             : null;
@@ -242,6 +300,25 @@ public sealed class TapStickerPlacer : MonoBehaviour
         }
 
         return EventSystem.current.IsPointerOverGameObject();
+    }
+
+    private void SetPreviewVisible(bool visible)
+    {
+        if (templateSticker != null && templateSticker.gameObject.activeSelf != visible)
+        {
+            templateSticker.gameObject.SetActive(visible);
+        }
+    }
+
+    private void HidePreview()
+    {
+        SetPreviewVisible(false);
+        NotifyPreviewScreenPoint(Vector2.zero, false);
+    }
+
+    private void NotifyPreviewScreenPoint(Vector2 point, bool visible)
+    {
+        PreviewScreenPointChanged?.Invoke(point, visible);
     }
 
     private static void AttachFairyEffect(PeelSticker3D sticker)

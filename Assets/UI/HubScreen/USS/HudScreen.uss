@@ -5,6 +5,26 @@
     background-color: rgba(0, 0, 0, 0);
 }
 
+#preview-count-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    min-width: 120px;
+    padding-left: 14px;
+    padding-right: 14px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    background-color: rgba(0, 0, 0, 0.72);
+    color: rgb(255, 255, 255);
+    font-size: 28px;
+    -unity-text-align: middle-center;
+    border-top-left-radius: 999px;
+    border-top-right-radius: 999px;
+    border-bottom-left-radius: 999px;
+    border-bottom-right-radius: 999px;
+    display: none;
+}
+
 #top-bar {
     position: absolute;
     left: 32px;
