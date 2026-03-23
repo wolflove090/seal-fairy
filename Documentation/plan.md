@@ -1,199 +1,177 @@
-# 所持金付きシールショップ機能 実装計画
+# 配置シールマウス追従プレビュー 実装計画
 
 ## 実装方針
-- シール価格は [StickerDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerDefinition.cs) に `price` フィールドを追加して管理する。ショップ専用データを増やさず、販売一覧・購入判定・ログ出力で同一定義を参照する。
-- 所持金は新規のランタイムデータソースへ切り出す。`HubScreenBinder` に金額を直接持たせず、専用コンポーネントが「現在残高」「減算 API」「変更通知」を持つ構成にする。
-- HUD 左上の `money-label` とショップフッターの `sticker-shop-money-label` は同じ所持金ソースを購読して表示更新する。
-- ショップ購入可否は `所持金 >= StickerDefinition.Price` で判定し、購入不可カードは `SetEnabled(false)` と USS クラス付与でグレーアウトする。
-- 既存の所持シール更新責務は [OwnedStickerInventorySource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs) に残し、購入成功時のみ「所持金減算」と「所持シール追加」を同一ハンドラで連続実行する。
-- 既存のショップ UI 資産は流用し、カード内に価格ラベルを追加する最小変更に留める。
-- 既存のフェーズ制御 [SealPhaseBoostrap.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseBootstrap.cs) とシール配置処理は壊さず、`HubScreenBinder` の公開 API は現状維持を優先する。
+- 既存の配置処理は [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) を中心に維持し、その中へ「選択中シールのプレビュー更新」と「HUD へのプレビュー位置通知」を追加する。
+- 選択状態の真実のソースは引き続き [StickerSelectionState.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs) とし、選択変更通知イベントを追加して UI と配置処理の同期を安定化する。
+- 残数の真実のソースは [OwnedStickerInventorySource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs) に残し、残数表示はその値を参照して更新する。
+- 残数表示は UI Toolkit の画面固定ラベルとして生成しつつ、表示位置は `TapStickerPlacer` から渡されるスクリーン座標を使ってカーソル近傍へ追従させる。
+- 毎フレームの `Instantiate` / `Destroy` は避け、選択 prefab が変化したときのみプレビューインスタンスを差し替える。
+- フェーズ切り替え、選択解除、残数 0、配置面ヒット失敗のいずれでも、プレビューシールと残数ラベルが同時に消える一貫した挙動にする。
 
 ## 変更対象ファイル一覧
 
-### 新規追加予定
-- [Assets/Scripts/Currency/CurrencyBalanceSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Currency/CurrencyBalanceSource.cs)
-  - 初期所持金、現在残高、減算 API、変更通知イベントを持つコンポーネント。
-  - 初期値 1000 円を Inspector から変更可能にしつつ、デフォルト値を 1000 にする。
-
 ### 更新予定
-- [Assets/Scripts/Sticker/StickerDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerDefinition.cs)
-  - シール価格のシリアライズフィールドと公開プロパティを追加する。
-  - 0 未満を避けるため `Mathf.Max(0, price)` で公開するか、実装側で負値を防ぐ。
+- [Assets/Scripts/Sticker/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs)
+  - プレビュー用 `PeelSticker3D` の表示更新を追加する。
+  - 毎フレームのマウス位置からプレビュー座標を計算する。
+  - HUD へスクリーン座標と表示可否を通知するイベントまたは API を追加する。
+  - フェーズ無効時や残数 0 時にプレビューを消す。
 - [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
-  - `money-label` の参照取得と表示更新を追加する。
-  - 所持金ソース購読処理、ショップカードの価格表示、購入可否判定、購入成功時の減算処理を追加する。
-  - 購入後に所持金表示・ショップ一覧・所持シール一覧を再描画する。
-- [Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/OwnedStickerInventorySource.cs)
-  - 既存の先頭追加 API をそのまま利用し、必要ならイベント発火タイミングだけ確認する。
-- [Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml)
-  - ショップカードに価格表示を入れる前提で、必要ならテンプレート構造に合わせた要素名を整理する。
-- [Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss)
-  - 価格ラベルと購入不可グレーアウト表示のスタイルを追加する。
+  - プレビュー残数ラベルの参照取得、文言更新、位置更新、表示切り替えを追加する。
+  - `StickerSelectionState` の選択変更通知を購読し、選択シール変更時に残数表示を更新する。
+  - `OwnedStickerInventorySource` の変更通知とフェーズ変更通知で残数表示を同期する。
+- [Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs)
+  - 選択変更通知イベントを追加する。
+  - `Select` と `ClearSelection` の変更時のみイベントを発火する。
 - [Assets/UI/HubScreen/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml)
-  - `money-label` は既存利用で足りるため、必要なら初期文言のみ調整する。
+  - ルート直下にプレビュー残数表示用 `Label` を追加する。
+- [Assets/UI/HubScreen/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss)
+  - プレビュー残数ラベルの見た目と absolute 配置スタイルを追加する。
+- [Assets/Scripts/Phase/SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs)
+  - `TapStickerPlacer` のプレビュー非表示制御が不足する場合のみ、フェーズ無効化時の明示通知を追加する。
 - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
-  - `CurrencyBalanceSource` をシーンへ配置し、`HubScreenBinder` へ参照を割り当てる。
-  - 販売対象 `StickerDefinition` の価格を Inspector で設定する。
-- [Documentation/todo.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/todo.md)
-- [Documentation/manual.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/manual.md)
+  - 必要に応じて `HudScreenBinder` と `TapStickerPlacer` の参照設定を確認する。
 
 ## データフロー / 処理フロー
-1. 起動時、`CurrencyBalanceSource` が初期所持金 1000 円を保持する。
-2. [HubScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `OnEnable()` で `money-label` と `sticker-shop-money-label` を取得し、現在残高を表示する。
-3. プレイヤーが `ショップ` ボタンを押すと `OpenStickerShop()` が呼ばれ、`RefreshStickerShop()` 実行時に各 `StickerDefinition.Price` と現在残高を比較してカードを生成する。
-4. カード生成時、購入可能なら通常表示・押下可能、購入不可ならグレーアウト・押下不可とする。
-5. プレイヤーが購入可能カードを押すと `HandleStickerShopItemClicked(StickerDefinition item)` を呼ぶ。
-6. ハンドラ内で `currencyBalanceSource.TrySpend(item.Price)` を実行し、成功時のみ `inventorySource.AddOwnedStickerToFront(item)` を実行する。
-7. `CurrencyBalanceSource` は残高更新後に変更通知を発火し、`HubScreenBinder` が HUD とショップ内の金額表示を更新する。
-8. 続けて `RefreshStickerShop()` を再実行し、残高不足になったカードをグレーアウトへ切り替える。
-9. `OwnedStickerInventorySource` の変更通知で所持一覧 UI が再構築され、新規購入シールが先頭に表示される。
-10. ショップ画面は開いたまま維持し、背景または `閉じる` のみで閉じる。
+1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の一覧セル押下で `StickerSelectionState.Select(sticker)` を実行する。
+2. [StickerSelectionState.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerSelection/StickerSelectionState.cs) が `SelectedStickerChanged` を通知する。
+3. [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) が選択 prefab を再評価し、必要時のみプレビューインスタンスを再生成する。
+4. `Update()` で `Input.mousePosition` を取得し、既存の `TryGetPlaneHitPoint` でワールド座標へ変換する。
+5. 配置フェーズ中かつ選択中シールの残数が 1 以上なら、プレビューオブジェクトをそのワールド座標へ移動し、`WorldToScreenPoint` で残数ラベル用座標を計算する。
+6. `TapStickerPlacer` が `PreviewScreenPointChanged` を通知し、`HubScreenBinder` が `preview-count-label` の位置を更新する。
+7. `HubScreenBinder` は `inventorySource.GetOwnedStickerCount(selectionState.SelectedSticker)` を参照して残数文言を `残り xN` として表示する。
+8. プレイヤーがクリックまたはタップすると、既存配置ロジックでシール生成後に `inventorySource.RemoveOwnedSticker(selectedSticker)` が実行される。
+9. `OwnedStickersChanged` により一覧再構築と残数再計算が行われ、残数 0 または選択解除ならプレビューと残数ラベルが非表示になる。
+10. `SealPeeling` 遷移時は `TapStickerPlacer.SetPlacementEnabled(false)` を契機にプレビュー更新を止め、HUD 側もラベルを非表示にする。
 
 ## 処理詳細
 
-### 1. 所持金ソースの分離
-- `CurrencyBalanceSource` は `CurrentBalance` と `TrySpend(int amount)` を公開する。
-- `TrySpend` は `amount < 0` と `CurrentBalance < amount` を拒否し、成功時のみ残高を減らして `BalanceChanged` を発火する。
-- 初期値は `[SerializeField] private int startingBalance = 1000;` を持たせる。
-- 残高の直接書き換えは避け、減算は API 経由に限定する。
+### 1. 選択変更通知の追加
+- `StickerSelectionState` に `event Action<StickerDefinition> SelectedStickerChanged` を追加する。
+- `Select` では選択対象が変わったときのみ通知する。
+- `ClearSelection` では `null` 通知を送る。
+- `BuildStickerList()` 内の再選択や在庫変動時も、このイベントを通じて `TapStickerPlacer` と `HubScreenBinder` が最新状態を受け取れるようにする。
 
-### 2. シール価格の保持
-- `StickerDefinition` に `[SerializeField] private int price = 100;` のような価格フィールドを追加する。
-- 公開プロパティは `public int Price => Mathf.Max(0, price);` とし、負値設定の事故を吸収する。
-- 価格の表示文言は `"{price}円"` に統一する。
+### 2. プレビューインスタンスの管理
+- `TapStickerPlacer` の `templateSticker` をプレビュー実体として再利用する。
+- `CacheTemplateSticker()` で選択 prefab が変わった場合のみ旧プレビューを破棄し、新しい prefab から生成する。
+- プレビューは `gameObject.SetActive(false)` を基本とし、表示条件を満たしたフレームだけアクティブ化する。
+- 既存の配置処理はプレビューインスタンスを複製して本体シールを生成する流れを維持する。
 
-### 3. HUD / ショップ金額表示
-- `HubScreenBinder` に `private Label moneyLabel;` を追加する。
-- `OnEnable()` で `root.Q<Label>("money-label")` を取得する。
-- `UpdateMoneyLabels()` を追加し、HUD とショップフッターの 2 ラベルへ同じ文言を設定する。
-- ショップを開く前後に関係なく `BalanceChanged` 購読中は常に最新値を反映する。
+### 3. プレビュー位置更新
+- `Update()` の先頭で `UpdatePreview()` を呼び、配置入力判定より前にプレビュー表示だけ更新する。
+- `UpdatePreview()` は以下を判定する。
+  - `Application.isPlaying`
+  - `isPlacementEnabled`
+  - `selectionState?.SelectedSticker != null`
+  - `inventorySource.GetOwnedStickerCount(selectedSticker) > 0`
+  - アクティブカメラ取得成功
+  - 配置平面ヒット成功
+- 条件を満たした場合のみプレビュー位置を更新し、スクリーン座標通知を送る。
+- 条件を満たさない場合は `SetPreviewVisible(false)` と残数ラベル非表示通知を送る。
 
-### 4. ショップカード生成
-- `CreateStickerShopCard(StickerDefinition item)` に価格ラベル生成を追加する。
-- カード生成時に `bool canPurchase = currencyBalanceSource != null && currencyBalanceSource.CurrentBalance >= item.Price;` を算出する。
-- `card.SetEnabled(canPurchase);` に加えて `card.EnableInClassList("sticker-shop-card--disabled", !canPurchase);` を付与する。
-- 無効カードは hover / active 変化を抑え、文字色と画像の不透明度も落とす。
+### 4. 残数表示ラベル
+- `HudScreen.uxml` に `Label name="preview-count-label"` を追加する。
+- `HubScreenBinder.OnEnable()` で `previewCountLabel = root.Q<Label>("preview-count-label");` を取得する。
+- 表示文言は `残り x{count}` に統一する。
+- `TapStickerPlacer` から受け取ったスクリーン座標に固定オフセットを加えて `style.left` / `style.top` を更新する。
+- 画面外へはみ出す場合は `root.layout.width` と `root.layout.height` を使って clamp する。
 
-### 5. 購入処理
-- `HandleStickerShopItemClicked` は以下の順で処理する。
-  1. `item`、`inventorySource`、`currencyBalanceSource` の null チェック
-  2. `currencyBalanceSource.TrySpend(item.Price)` 実行
-  3. 失敗時は return
-  4. `inventorySource.AddOwnedStickerToFront(item)` 実行
-  5. 購入ログ出力
-  6. `RefreshStickerShop()` 実行
-- これにより、減算失敗時に所持シールだけ増える不整合を防ぐ。
-
-### 6. 所持一覧への影響
-- 所持シール一覧の再構築は現状の `OwnedStickersChanged` 購読に乗せる。
-- 選択状態維持ロジックは現状の `BuildStickerList()` を踏襲し、購入しても別シール選択が崩れないようにする。
-- 同一定義の重複購入時に複数セルが同時選択表示になる既知挙動は、今回のスコープでは容認するか、補正不要として文書に残す。
+### 5. フェーズ連携
+- `HubScreenBinder.HandlePhaseChanged()` で既存の一覧表示切り替えに加え、`preview-count-label` の表示可否も更新する。
+- `SealPhaseController` 側の `SetPlacementEnabled(false)` により `TapStickerPlacer` 側の `UpdatePreview()` が停止するため、同フレーム内で非表示通知を送る。
+- `SealPeeling` から `SealPlacement` に戻った際、既存仕様どおり未選択ならプレビューも残数表示も出さない。
 
 ## リスクと対策
-- `HubScreenBinder` の責務がさらに肥大化し、UI 更新ロジックが散らばる可能性がある。
-  - 金額表示更新を `UpdateMoneyLabels()`、ショップ再描画を `RefreshStickerShop()` に寄せ、処理単位を明確に分ける。
-- `StickerDefinition` に価格追加後、既存シーン・Prefab の価格未設定で 0 円購入が発生する可能性がある。
-  - [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) 内の販売シール設定確認を検証項目へ含める。
-- 購入不可カードを `SetEnabled(false)` のみにすると見た目の差が弱い可能性がある。
-  - USS クラスで背景色、文字色、画像 opacity を落として明示する。
-- 残高変更時にショップ一覧を更新しないと、購入可否表示が古いまま残る。
-  - 購入成功直後に必ず `RefreshStickerShop()` を実行し、必要なら `BalanceChanged` 時にもショップオーバーレイ表示中のみ再評価する。
-- 新規 `CurrencyBalanceSource` 参照がシーンで未設定だと購入処理が無効になる。
-  - `HubScreenBinder` 初期化時の null ガードと `Debug.LogError` を入れ、シーン設定漏れを早期発見する。
+- `TapStickerPlacer` が入力・配置・プレビュー通知を持つことで肥大化する。
+  - プレビュー位置計算を `UpdatePreview()` と `NotifyPreviewScreenPoint()` に分離し、配置処理と明確に分ける。
+- 在庫変更後に選択解除とラベル更新の順序がずれると、一瞬だけ古い残数が表示される可能性がある。
+  - `OwnedStickersChanged` を受けた `BuildStickerList()` の最後で残数表示更新を必ず再実行する。
+- UI 上にマウスがある間もプレビューだけ動き続けると違和感が出る可能性がある。
+  - UI 操作中はプレビュー位置更新も止めるか、最後の有効位置で固定するかを 1 つに統一する。今回は非表示に寄せる。
+- 画面端で残数ラベルが見切れる可能性がある。
+  - スクリーン座標にオフセットを加えた後で clamp する。
+- プレビュー prefab が通常シールと同じ描画設定だと視認しづらい可能性がある。
+  - 必要ならマテリアル色や透明度の Inspector 調整ポイントを追加するが、初回実装は最小変更で進める。
 
 ## 検証方針
-- 手動確認1: 起動直後、HUD 左上とショップフッターに `お金：1000円` が表示される。
-- 手動確認2: 各販売シールカードに価格が表示される。
-- 手動確認3: 1000 円より高い価格のシールはグレーアウトされ、押せない。
-- 手動確認4: 300 円のシールを購入すると、HUD とショップフッターの両方が `お金：700円` に更新される。
-- 手動確認5: 購入成功時に対象シールが所持一覧先頭へ追加される。
-- 手動確認6: 残高低下で購入不可になった他カードが、その場でグレーアウトへ切り替わる。
-- 手動確認7: 残高不足カード押下で所持金も所持シールも変化しない。
-- 手動確認8: 同じシールを複数回購入すると、購入回数分だけ残高が減り、所持数が増える。
-- 手動確認9: ショップ画面は購入後も開いたままで、`閉じる` または背景押下で閉じる。
-- 手動確認10: シール配置フェーズ、フェーズ遷移、妖精コレクション画面が既存どおり動作する。
+- 手動確認1: `SealPlacement` 中にシール選択後、マウス移動に応じて選択中シールのプレビューが追従する。
+- 手動確認2: プレビュー近傍に `残り xN` が表示され、一覧セル内の所持数と一致する。
+- 手動確認3: 別シールを選択すると、プレビュー見た目と残数表示が即時に切り替わる。
+- 手動確認4: シールを配置すると残数表示が即時に 1 減る。
+- 手動確認5: 残数 0 でプレビューと残数表示が消え、未選択状態になる。
+- 手動確認6: `SealPeeling` 遷移でプレビューと残数表示が消える。
+- 手動確認7: UI 一覧や各ボタン操作中に、意図せずシール配置が発生しない。
+- 手動確認8: 既存のシール配置、剥がし、ショップ、妖精コレクションが退行しない。
 
 ## コードスニペット
 ```csharp
-using System;
-using UnityEngine;
-
-[DisallowMultipleComponent]
-public sealed class CurrencyBalanceSource : MonoBehaviour
+public sealed class StickerSelectionState
 {
-    [SerializeField] private int startingBalance = 1000;
+    public event Action<StickerDefinition> SelectedStickerChanged;
 
-    public event Action<int> BalanceChanged;
+    public IReadOnlyList<StickerDefinition> OwnedStickers { get; private set; }
+    public StickerDefinition SelectedSticker { get; private set; }
 
-    public int CurrentBalance { get; private set; }
-
-    private void Awake()
+    public void Select(StickerDefinition sticker)
     {
-        CurrentBalance = Mathf.Max(0, startingBalance);
-    }
-
-    public bool TrySpend(int amount)
-    {
-        if (amount < 0 || CurrentBalance < amount)
+        if (SelectedSticker == sticker)
         {
-            return false;
+            return;
         }
 
-        CurrentBalance -= amount;
-        BalanceChanged?.Invoke(CurrentBalance);
-        return true;
+        SelectedSticker = sticker;
+        SelectedStickerChanged?.Invoke(SelectedSticker);
+    }
+
+    public void ClearSelection()
+    {
+        if (SelectedSticker == null)
+        {
+            return;
+        }
+
+        SelectedSticker = null;
+        SelectedStickerChanged?.Invoke(null);
     }
 }
 ```
 
 ```csharp
-[System.Serializable]
-public sealed class StickerDefinition
+private void UpdatePreview()
 {
-    [SerializeField] private string id;
-    [SerializeField] private string displayName;
-    [SerializeField] private Sprite icon;
-    [SerializeField] private PeelSticker3D stickerPrefab;
-    [SerializeField] private int price = 100;
+    StickerDefinition selectedSticker = selectionState?.SelectedSticker;
+    int ownedCount = inventorySource != null && selectedSticker != null
+        ? inventorySource.GetOwnedStickerCount(selectedSticker)
+        : 0;
 
-    public int Price => Mathf.Max(0, price);
-}
-```
-
-```csharp
-private void UpdateMoneyLabels()
-{
-    int balance = currencyBalanceSource != null ? currencyBalanceSource.CurrentBalance : 0;
-    string text = $"お金：{balance}円";
-
-    if (moneyLabel != null)
+    if (!isPlacementEnabled || selectedSticker == null || ownedCount <= 0)
     {
-        moneyLabel.text = text;
-    }
-
-    if (stickerShopMoneyLabel != null)
-    {
-        stickerShopMoneyLabel.text = text;
-    }
-}
-```
-
-```csharp
-private void HandleStickerShopItemClicked(StickerDefinition item)
-{
-    if (item == null || inventorySource == null || currencyBalanceSource == null)
-    {
+        SetPreviewVisible(false);
+        NotifyPreviewScreenPoint(Vector2.zero, false);
         return;
     }
 
-    if (!currencyBalanceSource.TrySpend(item.Price))
+    Camera activeCamera = GetActiveCamera();
+    if (activeCamera == null)
     {
+        SetPreviewVisible(false);
+        NotifyPreviewScreenPoint(Vector2.zero, false);
         return;
     }
 
-    inventorySource.AddOwnedStickerToFront(item);
-    Debug.Log($"ショップ購入: {item.DisplayName} / {item.Price}円 / 残高 {currencyBalanceSource.CurrentBalance}円");
-    RefreshStickerShop();
+    CacheTemplateSticker();
+    Vector3 screenPoint = Input.mousePosition;
+    if (templateSticker == null ||
+        !templateSticker.TryGetPlaneHitPoint(activeCamera, screenPoint, out Vector3 worldPoint))
+    {
+        SetPreviewVisible(false);
+        NotifyPreviewScreenPoint(Vector2.zero, false);
+        return;
+    }
+
+    templateSticker.transform.position = worldPoint;
+    templateSticker.gameObject.SetActive(true);
+    NotifyPreviewScreenPoint(screenPoint, true);
 }
 ```
