@@ -24,7 +24,7 @@
     position: absolute;
     top: 0;
     right: 0;
-    width: 830px;
+    width: 1200px;
     bottom: 0;
     flex-direction: column;
     padding: 32px;
