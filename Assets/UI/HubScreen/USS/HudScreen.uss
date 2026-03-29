@@ -36,24 +36,36 @@
 }
 
 #money-panel {
-    width: 500px;
-    min-height: 140px;
-    padding-left: 28px;
-    padding-right: 28px;
-    padding-top: 20px;
-    padding-bottom: 20px;
-    background-color: rgb(217, 217, 217);
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
-    justify-content: center;
+    width: 430px;
+    min-height: 144px;
+    padding-left: 26px;
+    padding-right: 34px;
+    padding-top: 18px;
+    padding-bottom: 18px;
+    flex-direction: row;
+    align-items: center;
+    background-color: rgb(246, 132, 166);
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+}
+
+#money-icon {
+    width: 74px;
+    height: 74px;
+    margin-right: 20px;
+    -unity-background-scale-mode: scale-to-fit;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-position-y: center;
 }
 
 #money-label {
+    flex-grow: 1;
+    font-size: 64px;
+    color: rgb(255, 255, 255);
     -unity-text-align: middle-left;
-    font-size: 52px;
-    color: rgb(0, 0, 0);
     white-space: nowrap;
 }
 
@@ -77,26 +89,33 @@
 
 #bottom-left-sticker-panel {
     position: absolute;
-    left: 32px;
-    bottom: 36px;
-    width: 435px;
-    height: 480px;
-    padding-left: 24px;
-    padding-right: 24px;
-    padding-top: 20px;
-    padding-bottom: 20px;
-    background-color: rgb(217, 217, 217);
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
+    left: 0;
+    bottom: 0;
+    width: 590px;
+    height: 504px;
 }
 
 #sticker-list-title {
-    margin-bottom: 16px;
-    font-size: 42px;
-    color: rgb(0, 0, 0);
+    font-size: 48px;
+    color: rgb(255, 255, 255);
     -unity-text-align: middle-left;
+}
+
+#sticker-list-header {
+    height: 84px;
+    padding-left: 24px;
+    justify-content: center;
+    background-color: rgb(255, 96, 118);
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+}
+
+#sticker-list-body {
+    flex-grow: 1;
+    padding: 18px;
+    background-color: rgb(255, 218, 226);
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
 }
 
 #sticker-scroll-view {
@@ -111,25 +130,22 @@
 }
 
 .sticker-cell {
-    width: 112px;
-    height: 112px;
-    margin-right: 12px;
-    margin-bottom: 12px;
-    padding-left: 8px;
-    padding-right: 8px;
-    padding-top: 8px;
-    padding-bottom: 8px;
+    width: 120px;
+    height: 120px;
+    margin-right: 16px;
+    margin-bottom: 16px;
+    padding: 8px;
     justify-content: center;
     align-items: center;
-    background-color: rgb(245, 245, 245);
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
-    border-bottom-left-radius: 10px;
-    border-bottom-right-radius: 10px;
-    border-left-width: 2px;
-    border-right-width: 2px;
-    border-top-width: 2px;
-    border-bottom-width: 2px;
+    background-color: rgb(255, 255, 255);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border-left-width: 3px;
+    border-right-width: 3px;
+    border-top-width: 3px;
+    border-bottom-width: 3px;
     border-left-color: rgba(0, 0, 0, 0);
     border-right-color: rgba(0, 0, 0, 0);
     border-top-color: rgba(0, 0, 0, 0);
@@ -139,10 +155,10 @@
 
 .sticker-cell--selected {
     background-color: rgb(255, 244, 204);
-    border-left-color: rgb(255, 196, 0);
-    border-right-color: rgb(255, 196, 0);
-    border-top-color: rgb(255, 196, 0);
-    border-bottom-color: rgb(255, 196, 0);
+    border-left-color: rgb(255, 140, 170);
+    border-right-color: rgb(255, 140, 170);
+    border-top-color: rgb(255, 140, 170);
+    border-bottom-color: rgb(255, 140, 170);
 }
 
 .sticker-cell__image {
@@ -175,8 +191,9 @@
 
 #empty-sticker-list-label {
     font-size: 28px;
-    color: rgb(70, 70, 70);
+    color: rgb(120, 120, 120);
     white-space: normal;
+    -unity-text-align: middle-center;
 }
 
 #bottom-right-menu {

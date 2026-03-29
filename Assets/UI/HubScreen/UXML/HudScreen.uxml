@@ -4,15 +4,20 @@
         <ui:Label name="preview-count-label" text="残り x0" />
         <ui:VisualElement name="top-bar">
             <ui:VisualElement name="money-panel">
-                <ui:Label name="money-label" text="お金：XXX円"/>
+                <ui:VisualElement name="money-icon" />
+                <ui:Label name="money-label" text="999,999"/>
             </ui:VisualElement>
             <ui:Button name="ready-button" text="シールめくりへ"/>
         </ui:VisualElement>
         <!-- TODO シールが無い時の表記を追加する-->
         <ui:VisualElement name="bottom-left-sticker-panel">
-            <ui:Label name="sticker-list-title" text="シール一覧" />
-            <ui:Label name="empty-sticker-list-label" text="所持シールがありません" />
-            <ui:ScrollView name="sticker-scroll-view" mode="Vertical" />
+            <ui:VisualElement name="sticker-list-header">
+                <ui:Label name="sticker-list-title" text="シール一覧" />
+            </ui:VisualElement>
+            <ui:VisualElement name="sticker-list-body">
+                <ui:Label name="empty-sticker-list-label" text="所持シールがありません" />
+                <ui:ScrollView name="sticker-scroll-view" mode="Vertical" />
+            </ui:VisualElement>
         </ui:VisualElement>
         <ui:VisualElement name="bottom-right-menu">
             <ui:Button name="shop-button" text="ショップ"/>
