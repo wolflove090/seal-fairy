@@ -55,6 +55,7 @@
     width: 74px;
     height: 74px;
     margin-right: 20px;
+    background-image: resource('UI/coin_icon');
     -unity-background-scale-mode: scale-to-fit;
     background-repeat: no-repeat;
     background-position-x: center;

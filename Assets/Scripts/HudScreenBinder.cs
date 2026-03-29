@@ -5,7 +5,6 @@ using UnityEngine.UIElements;
 public sealed class HubScreenBinder : MonoBehaviour
 {
     [SerializeField] private UIDocument uiDocument;
-    [SerializeField] private Sprite moneyIconSprite;
     [SerializeField] private OwnedStickerInventorySource inventorySource;
     [SerializeField] private FairyCatalogSource fairyCatalogSource;
     [SerializeField] private VisualTreeAsset fairyCollectionScreenAsset;
@@ -19,7 +18,6 @@ public sealed class HubScreenBinder : MonoBehaviour
     private readonly Vector2 previewLabelOffset = new(20f, -52f);
 
     private SealPhaseEventHub eventHub;
-    private VisualElement moneyIcon;
     private Button readyButton;
     private Button fairyButton;
     private Button shopButton;
@@ -61,7 +59,6 @@ public sealed class HubScreenBinder : MonoBehaviour
     {
         root = uiDocument.rootVisualElement;
         moneyLabel = root.Q<Label>("money-label");
-        moneyIcon = root.Q<VisualElement>("money-icon");
         readyButton = root.Q<Button>("ready-button");
         fairyButton = root.Q<Button>("fairy-button");
         shopButton = root.Q<Button>("shop-button");
@@ -69,11 +66,6 @@ public sealed class HubScreenBinder : MonoBehaviour
         stickerScrollView = root.Q<ScrollView>("sticker-scroll-view");
         emptyStickerListLabel = root.Q<Label>("empty-sticker-list-label");
         previewCountLabel = root.Q<Label>("preview-count-label");
-
-        if(moneyIcon != null && moneyIconSprite != null)
-        {
-            moneyIcon.style.backgroundImage = new StyleBackground(moneyIconSprite);
-        }
 
         if (readyButton == null)
         {
