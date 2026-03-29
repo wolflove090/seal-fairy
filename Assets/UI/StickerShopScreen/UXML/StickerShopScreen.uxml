@@ -5,12 +5,9 @@
         <ui:VisualElement name="sticker-shop-panel">
             <ui:VisualElement name="sticker-shop-header">
                 <ui:Label name="sticker-shop-title" text="シールショップ" />
-                <ui:Button name="sticker-shop-close-button" text="×" />
+                <ui:Button name="sticker-shop-close-button"/>
             </ui:VisualElement>
             <ui:VisualElement name="sticker-shop-content-frame">
-                <ui:VisualElement name="sticker-shop-money-panel">
-                    <ui:Label name="sticker-shop-money-label" text="999,999" />
-                </ui:VisualElement>
                 <ui:Label name="sticker-shop-empty-label" text="販売シールがありません" />
                 <ui:ScrollView name="sticker-shop-scroll-view" mode="Vertical" />
             </ui:VisualElement>

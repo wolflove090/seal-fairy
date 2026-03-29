@@ -48,6 +48,7 @@
 #sticker-shop-close-button {
     width: 92px;
     height: 92px;
+    background-image: resource('UI/close_icon');
     background-color: rgb(255, 255, 255);
     color: rgb(0, 0, 0);
     font-size: 56px;
@@ -69,18 +70,6 @@
     border-top-right-radius: 18px;
     border-bottom-left-radius: 18px;
     border-bottom-right-radius: 18px;
-}
-
-#sticker-shop-money-panel {
-    height: 72px;
-    margin-bottom: 20px;
-    padding-left: 24px;
-    justify-content: center;
-    background-color: rgb(255, 255, 255);
-    border-top-left-radius: 16px;
-    border-top-right-radius: 16px;
-    border-bottom-left-radius: 16px;
-    border-bottom-right-radius: 16px;
 }
 
 #sticker-shop-money-label {

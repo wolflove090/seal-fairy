@@ -39,7 +39,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     private VisualElement stickerShopPanel;
     private ScrollView stickerShopScrollView;
     private Label stickerShopEmptyLabel;
-    private Label stickerShopMoneyLabel;
+    // private Label stickerShopMoneyLabel;
     private Button stickerShopCloseButton;
     private bool isSubscribed;
     private SealGamePhase currentPhase = SealGamePhase.StickerPlacement;
@@ -226,7 +226,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         stickerShopPanel = root.Q<VisualElement>("sticker-shop-panel");
         stickerShopScrollView = root.Q<ScrollView>("sticker-shop-scroll-view");
         stickerShopEmptyLabel = root.Q<Label>("sticker-shop-empty-label");
-        stickerShopMoneyLabel = root.Q<Label>("sticker-shop-money-label");
+        // stickerShopMoneyLabel = root.Q<Label>("sticker-shop-money-label");
         stickerShopCloseButton = root.Q<Button>("sticker-shop-close-button");
 
         if (stickerShopOverlay == null ||
@@ -234,7 +234,7 @@ public sealed class HubScreenBinder : MonoBehaviour
             stickerShopPanel == null ||
             stickerShopScrollView == null ||
             stickerShopEmptyLabel == null ||
-            stickerShopMoneyLabel == null ||
+            // stickerShopMoneyLabel == null ||
             stickerShopCloseButton == null)
         {
             Debug.LogError("シールショップ UI の初期化に失敗しました");
@@ -354,11 +354,6 @@ public sealed class HubScreenBinder : MonoBehaviour
         {
             moneyLabel.text = text;
         }
-
-        if (stickerShopMoneyLabel != null)
-        {
-            stickerShopMoneyLabel.text = text;
-        }
     }
 
     private void RefreshMoneyLabelReferences()
@@ -377,11 +372,6 @@ public sealed class HubScreenBinder : MonoBehaviour
         if (moneyLabel == null || moneyLabel.panel == null)
         {
             moneyLabel = root.Q<Label>("money-label");
-        }
-
-        if (stickerShopMoneyLabel == null || stickerShopMoneyLabel.panel == null)
-        {
-            stickerShopMoneyLabel = root.Q<Label>("sticker-shop-money-label");
         }
     }
 

@@ -27,7 +27,7 @@
 
 #top-bar {
     position: absolute;
-    left: 32px;
+    left: -20px;
     right: 32px;
     top: 20px;
     flex-direction: row;
@@ -44,16 +44,27 @@
     padding-bottom: 18px;
     flex-direction: row;
     align-items: center;
+    
     background-color: rgb(246, 132, 166);
+
     border-top-left-radius: 18px;
     border-top-right-radius: 18px;
     border-bottom-left-radius: 18px;
     border-bottom-right-radius: 18px;
+
+    border-left-width: 8px;
+    border-right-width: 8px;
+    border-top-width: 8px;
+    border-bottom-width: 8px;
+    border-left-color: rgb(255, 255, 255);
+    border-right-color: rgb(255, 255, 255);
+    border-top-color: rgb(255, 255, 255);
+    border-bottom-color: rgb(255, 255, 255);
 }
 
 #money-icon {
-    width: 74px;
-    height: 74px;
+    width: 100px;
+    height: 100px;
     margin-right: 20px;
     background-image: resource('UI/coin_icon');
     -unity-background-scale-mode: scale-to-fit;
