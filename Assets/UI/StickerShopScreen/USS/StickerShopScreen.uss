@@ -60,6 +60,20 @@
     border-right-width: 0;
     border-top-width: 0;
     border-bottom-width: 0;
+    translate: 0 0;
+    scale: 1;
+    transition-property: translate, scale, background-color;
+    transition-duration: 0.1s;
+}
+
+#sticker-shop-close-button:hover {
+    background-color: rgb(248, 248, 248);
+}
+
+#sticker-shop-close-button:active {
+    background-color: rgb(235, 235, 235);
+    translate: 0 3px;
+    scale: 0.98;
 }
 
 #sticker-shop-content-frame {
@@ -101,11 +115,6 @@
     width: 210px;
     margin-right: 34px;
     margin-bottom: 34px;
-    background-color: rgba(0, 0, 0, 0);
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
 }
 
 .sticker-shop-card__image-frame {
@@ -154,11 +163,13 @@
     margin-top: -6px;
     height: 56px;
     justify-content: center;
+    align-items: center;
     background-color: rgb(255, 255, 255);
     border-top-left-radius: 16px;
     border-top-right-radius: 16px;
     border-bottom-left-radius: 16px;
     border-bottom-right-radius: 16px;
+    position: relative;
 
     border-left-width: 2px;
     border-right-width: 2px;
@@ -168,6 +179,21 @@
     border-right-color: rgb(210, 210, 210);
     border-top-color: rgb(255, 255, 255);
     border-bottom-color: rgb(200, 200, 200);
+    transition-property: translate, scale, background-color;
+    transition-duration: 0.1s;
+}
+
+.sticker-shop-card__coin-icon {
+    position: absolute;
+    left: 8px;
+    top: -10px;
+    width: 28px;
+    height: 28px;
+    background-image: resource('UI/coin_icon');
+    -unity-background-scale-mode: scale-to-fit;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-position-y: center;
 }
 
 .sticker-shop-card__price {
@@ -176,15 +202,15 @@
     -unity-text-align: middle-center;
 }
 
-.sticker-shop-card:hover .sticker-shop-card__image-frame {
-    background-color: rgb(184, 207, 40);
+.sticker-shop-card__price-plate:hover {
+    background-color: rgb(248, 248, 248);
 }
 
-.sticker-shop-card:active .sticker-shop-card__image-frame {
-    background-color: rgb(170, 190, 30);
+.sticker-shop-card__price-plate:active {
+    background-color: rgb(235, 235, 235);
     translate: 0 3px;
     scale: 0.98;
-    border-top-width: 2px;
+    border-top-width: 1px;
     border-bottom-width: 2px;
 }
 
@@ -194,11 +220,7 @@
     border-bottom-color: rgb(120, 120, 120);
 }
 
-.sticker-shop-card--disabled:hover .sticker-shop-card__image-frame {
-    background-color: rgb(160, 160, 160);
-}
-
-.sticker-shop-card--disabled:active .sticker-shop-card__image-frame {
+.sticker-shop-card--disabled .sticker-shop-card__price-plate:active {
     translate: 0 0;
     scale: 1;
 }
@@ -206,8 +228,19 @@
 .sticker-shop-card--disabled .sticker-shop-card__name {
     color: rgb(200, 200, 200);
 }
+
+.sticker-shop-card--disabled .sticker-shop-card__price-plate {
+    background-color: rgb(230, 230, 230);
+    border-top-color: rgb(240, 240, 240);
+    border-bottom-color: rgb(180, 180, 180);
+}
+
 .sticker-shop-card--disabled .sticker-shop-card__price {
     color: rgb(150, 150, 150);
+}
+
+.sticker-shop-card--disabled .sticker-shop-card__coin-icon {
+    opacity: 0.55;
 }
 
 .sticker-shop-card--disabled .sticker-shop-card__image {

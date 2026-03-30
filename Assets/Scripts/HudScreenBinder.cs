@@ -526,9 +526,9 @@ public sealed class HubScreenBinder : MonoBehaviour
     }
 
     // ショップカードの生成
-    private Button CreateStickerShopCard(StickerDefinition item)
+    private VisualElement CreateStickerShopCard(StickerDefinition item)
     {
-        Button card = new();
+        VisualElement card = new();
         card.AddToClassList("sticker-shop-card");
 
         VisualElement imageFrame = new();
@@ -545,8 +545,12 @@ public sealed class HubScreenBinder : MonoBehaviour
         name.AddToClassList("sticker-shop-card__name");
         name.text = string.IsNullOrWhiteSpace(item?.DisplayName) ? "*****" : item.DisplayName;
 
-        VisualElement pricePlate = new();
+        Button pricePlate = new();
         pricePlate.AddToClassList("sticker-shop-card__price-plate");
+        pricePlate.focusable = false;
+
+        VisualElement coinIcon = new();
+        coinIcon.AddToClassList("sticker-shop-card__coin-icon");
 
         Label price = new();
         price.AddToClassList("sticker-shop-card__price");
@@ -554,6 +558,7 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         imageFrame.Add(image);
         imageFrame.Add(name);
+        pricePlate.Add(coinIcon);
         pricePlate.Add(price);
         card.Add(imageFrame);
         card.Add(pricePlate);
@@ -563,11 +568,11 @@ public sealed class HubScreenBinder : MonoBehaviour
             currencyBalanceSource.CurrentBalance >= item.Price;
 
         card.EnableInClassList("sticker-shop-card--disabled", !canPurchase);
-        card.SetEnabled(canPurchase);
+        pricePlate.SetEnabled(canPurchase);
 
         if (canPurchase)
         {
-            card.clicked += () => HandleStickerShopItemClicked(item);
+            pricePlate.clicked += () => HandleStickerShopItemClicked(item);
         }
 
         return card;
