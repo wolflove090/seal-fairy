@@ -1,11 +1,11 @@
-# HUD操作ボタン白ベースブラッシュアップ ToDo
+# 妖精コレクション画面ブラッシュアップ ToDo
 
-1. [HUD操作ボタン白ベースブラッシュアップ要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/HUD操作ボタン白ベースブラッシュアップ要件書.md) を再確認し、対象が `ready-button`、`shop-button`、`fairy-button` の3ボタンであることを確認する。
-2. [StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss) の `#sticker-shop-close-button` と `.sticker-shop-card__price-plate` を参照し、白プレート表現の基準値を抽出する。
-3. [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml) で各ボタンがテキストのみで構成されていることを確認し、USS だけで対応できるか判断する。
-4. [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss) の `#ready-button`、`#shop-button`、`#fairy-button` の既存グレー定義を整理し、共通スタイルへ統合する。
-5. [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss) で白ベース、濃い文字色、立体的なボーダー、hover / active 状態を追加する。
-6. `ready-button` にだけ主操作差分を入れ、`shop-button` / `fairy-button` は同シリーズのサブ操作として意匠を揃える。
-7. USS だけで表現しきれない場合のみ [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml) に装飾用子要素を追加し、Button の `name` を維持する。
-8. `ready-button` の文言更新方式に影響が出る場合のみ [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) を最小限修正する。
-9. Unity 上で通常 HUD、フェーズ変更時のラベル更新、ショップ起動、妖精画面起動、hover / active 見た目、レイアウト崩れの有無を確認する。
+1. [妖精コレクション画面ブラッシュアップ要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/妖精コレクション画面ブラッシュアップ要件書.md) を再確認し、右側固定パネル、右上 `X`、3 列カード、右下 `X/Y` が必須要件であることを確認する。
+2. [FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/UXML/FairyCollectionScreen.uxml) の現状構造を整理し、維持すべき `name` が `fairy-collection-overlay`、`fairy-collection-backdrop`、`fairy-collection-scroll-view`、`fairy-collection-empty-label`、`fairy-collection-count-label`、`fairy-collection-close-button` であることを確認する。
+3. [FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/UXML/FairyCollectionScreen.uxml) を、ヘッダー、内側フレーム、フッターを持つ新レイアウトへ更新する。
+4. [FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss) の既存灰色オーバーレイと単純カード定義を、右側大型ピンクパネルと黄緑カード前提のスタイルへ置き換える。
+5. スクロールコンテナのカード幅、余白、パネル幅を調整し、1920x1080 基準で 3 列レイアウトになるようにする。
+6. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `RefreshFairyCollection()` を確認し、空表示、発見数表示、スクロールビュー更新が新レイアウトでも成立するよう文言を調整する。
+7. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateFairyCard()` を更新し、名前、画像フレーム、`好きなシール：`、値表示の 4 ブロック構造へ組み替える。
+8. 未発見カードが `？？？` と `未発見` を表示し、発見済みカードが `クール/ワイルド` を表示することを C# と USS の両面で確認する。
+9. Unity 上で開閉導線、ショップとの排他表示、3 列表示、縦スクロール、右下 `X/Y` 表示、未発見見た目を確認する。
