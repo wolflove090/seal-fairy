@@ -1,166 +1,118 @@
-# ショップUIと周辺UIブラッシュアップ 実装計画
+# シール一覧UIショップ準拠調整 実装計画
 
 ## 実装方針
-- 既存のショップ購入、所持金更新、所持シール一覧更新ロジックは [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) を中心に維持し、今回は UI 構造と表示スタイルの刷新を主対象にする。
-- HUD とショップの見た目変更は UI Toolkit の UXML / USS へ集約し、座標や色、角丸などのレイアウト定数を C# 側へ持ち込まない。
-- 添付モック準拠のため、[HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml) と [StickerShopScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml) の階層を組み替え、`HudScreenBinder` のクエリ名とカード生成先を同期更新する。
-- ショップカードと所持シールタイルは、静的 UXML テンプレートではなく現在の動的生成方式を維持する。その代わり、カード内部の子要素構成と USS クラス設計を刷新する。
-- 所持金表示はテキスト単独から「アイコン + 数値」構成へ変更するため、UI Toolkit の `VisualElement` 背景画像で新規コインアセットを表示する。
-- 既存の妖精コレクション画面は本タスクのスコープ外だが、ショップ画面と同じ右側オーバーレイ構造を共有しているため、ショップ側だけを独立してブラッシュアップしても開閉排他が壊れないことを確認する。
+- 対象は HUD 左下の `シール一覧` パネルに限定し、既存の選択ロジック、所持数更新、ショップ機能には手を入れない。
+- 実装の主変更点は [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss) に集約し、可能な限り UXML 要素名と [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の参照を維持する。
+- 見た目の基準は [StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss) の `#sticker-shop-panel` と `#sticker-shop-content-frame` とし、濃いピンク外側コンテナと薄いピンク内側コンテンツの関係を左下パネルへ移植する。
+- `HudScreen.uxml` は現在すでに `bottom-left-sticker-panel` 配下に `sticker-list-header` と `sticker-list-body` を持っているため、基本は構造維持で対応する。必要な場合のみラッパーや余白用要素を追加する。
+- `BuildStickerList()` と `CreateStickerCell()` の責務は維持し、今回の変更で C# 側に見た目定数を追加しない。
 
 ## 変更対象ファイル一覧
-
-### 更新予定
-- [Assets/UI/HubScreen/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml)
-  - 所持金パネルを `money-icon` + `money-label` の複合構成へ変更する。
-  - 左下の所持シール一覧パネルをヘッダー帯とコンテンツ領域に分離する。
-  - 必要に応じて右下メニューや既存ラベルのラッパー要素を追加し、モックに近いレイヤ構造に整理する。
 - [Assets/UI/HubScreen/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss)
-  - 所持金パネル、所持シール一覧、右下メニュー、選択中タイルのスタイルを全面更新する。
-  - ピンク基調の配色、白縁、角丸、影風表現、スクロール領域の見た目を定義する。
-- [Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml)
-  - タイトル帯、閉じるボタン、ショップ内コンテンツフレーム、ショップ内所持金表示の配置をモック準拠へ組み替える。
-  - `ScrollView` を内側フレームへ収め、ヘッダー固定の構造にする。
-- [Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss)
-  - 右側大型ショップパネルの色、余白、装飾、グリッド間隔、閉じるボタン見た目を刷新する。
-  - ショップカードの画像領域、シール名、価格プレート、無効状態の表現を定義する。
+  - `bottom-left-sticker-panel`、`sticker-list-header`、`sticker-list-body` の背景構造、余白、角丸を調整する。
+  - 必要に応じて `sticker-scroll-view`、空表示ラベル、シールセルの見え方を微調整する。
+- [Assets/UI/HubScreen/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml)
+  - USS だけで対応できない場合に限り、内側下敷きのレイアウト安定化用の要素を追加する。
 - [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
-  - UXML 名称変更に追従したクエリ更新を行う。
-  - 所持金ラベル更新処理を、数値主体表示へ合わせて調整する。
-  - コインアイコンやショップ内所持金枠など、追加要素があっても既存ロジックが崩れない初期化順へ整理する。
-  - 動的生成するショップカードと所持シールタイルの子要素構成と USS クラスを刷新する。
-- [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
-  - 必要に応じて `UIDocument` の参照先や新規スプライト参照用 SerializedField を確認する。
-
-### 新規追加予定
-- [Assets/UI/Common](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/Common)
-  - 既存配置に合わせて共通 UI アセット置き場が必要なら作成する。
-- `Assets/GameResources/Texture` または UI 用適切な配置先
-  - 所持金パネル用のコインアイコン画像を追加する。
+  - UXML 構造を変えた場合のみ参照名・取得処理を同期する。USS のみで済むなら変更しない。
 
 ## データフロー / 処理フロー
-1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) が `UIDocument.rootVisualElement` から HUD の要素を取得する。
-2. `money-label` の表示文言は `CurrencyBalanceSource.CurrentBalance` をもとに数値主体フォーマットへ変換して反映する。
-3. `shop-button` 押下でショップオーバーレイを開き、`RefreshStickerShop()` が販売カードを再生成する。
-4. `RefreshStickerShop()` は [StickerShopCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerShop/StickerShopCatalogSource.cs) から販売シール一覧を取得し、各 `StickerDefinition` ごとにカードを生成する。
-5. カード生成時、画像、名称、価格ラベルを新しい子要素構成で組み立て、残高不足時は無効クラスと非活性状態を付与する。
-6. カード押下時、既存どおり `CurrencyBalanceSource.TrySpend()` と `OwnedStickerInventorySource.AddOwnedStickerToFront()` を実行する。
-7. `OwnedStickersChanged` を受けた `BuildStickerList()` が左下の所持シール一覧を新デザインのタイルで再生成する。
-8. `money-label` と `sticker-shop-money-label` は同じ残高ソースから再描画され、HUD とショップ内で同期する。
+1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `OnEnable()` が `bottom-left-sticker-panel`、`sticker-scroll-view`、`empty-sticker-list-label` を取得する。
+2. `BuildStickerList()` が `OwnedStickerInventorySource.GetOwnedStickers()` を読み、`sticker-scroll-view` に動的セルを並べる。
+3. 今回は 1 と 2 の処理は変えず、UI Toolkit のスタイルだけでパネル外観をショップ準拠へ寄せる。
+4. シール未所持時は `empty-sticker-list-label` が表示され、薄いピンクの内側領域に収まったまま空状態を示す。
+5. シール選択時は既存の `.sticker-cell--selected` が適用され、背景変更後も選択が判別できるよう USS を再調整する。
 
-## 処理詳細
+## 処理フロー詳細
 
-### 1. HUD UXML 再構成
-- `money-panel` 直下を `money-icon` と `money-label` を持つ横並びレイアウトに変更する。
-- `bottom-left-sticker-panel` は、ヘッダー帯と本体コンテナを分けるため、`sticker-list-header` と `sticker-list-body` のようなラッパーを追加する。
-- `sticker-scroll-view` は本体コンテナの内側へ配置し、内側余白と白縁表現を USS で扱いやすくする。
-- 既存の `preview-count-label` は現状仕様を維持し、今回の見た目変更対象からは外す。
+### 1. ショップ配色の参照元整理
+- [StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss#L23) の `#sticker-shop-panel` を濃いピンク背景の基準とする。
+- [StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss#L85) の `#sticker-shop-content-frame` を薄いピンク下敷きの基準とする。
+- `シール一覧` パネルで使う色は完全一致または近似値のどちらかに揃え、少なくとも同一シリーズに見える組み合わせへ調整する。
 
-### 2. ショップ UXML 再構成
-- `sticker-shop-panel` 直下を「ヘッダー」と「コンテンツフレーム」の 2 層に分ける。
-- ヘッダーには `sticker-shop-title` と `sticker-shop-close-button` を置く。
-- コンテンツフレーム内に `sticker-shop-money-label`、`sticker-shop-empty-label`、`sticker-shop-scroll-view` を配置し、ショップを開いた瞬間に残高とカード群を確認できる構成にする。
-- 背景用 `sticker-shop-backdrop` は左側ゲーム背景がうっすら見える半透明値へ調整する。
+### 2. HUD パネル構造の見直し
+- [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml#L13) の `bottom-left-sticker-panel` 全体に濃いピンク背景を持たせる。
+- `sticker-list-header` はタイトル配置用として残しつつ、ヘッダーだけ別色に見えないよう背景色や余白関係を調整する。
+- `sticker-list-body` に薄いピンク背景、内側余白、下側角丸を与え、ショップの `content-frame` と同じ役割にする。
+- パネル全体にパディングが必要なら `bottom-left-sticker-panel` に付け、`body` 側の余白と二重で過剰にならないよう整理する。
 
-### 3. 所持金表示更新の調整
-- `UpdateMoneyLabels()` は `お金：{balance}円` ではなく、3 桁区切りの数値文字列を返す形へ変更する。
-- 文字列フォーマットは `999,999` のような見た目を基準とし、ショップ内表示も同じルールに揃える。
-- ショップ内にラベルのみで残高を置くか、アイコン付き枠にするかは UXML 構成に合わせて `sticker-shop-money-label` または専用コンテナへ反映する。
+### 3. スクロール領域と空表示の整合
+- `sticker-scroll-view` は `sticker-list-body` の中で `flex-grow: 1;` を維持し、一覧件数増加時も内側下敷きの範囲でスクロールする。
+- `empty-sticker-list-label` は薄いピンク下敷き内で中央寄せに見えるよう必要最低限の余白調整を行う。
+- `sticker-scroll-view .unity-scroll-view__content-container` の折り返し設定は維持し、背景構造変更でセル配置が崩れないことを確認する。
 
-### 4. 所持シールタイル生成の刷新
-- `CreateStickerCell()` の生成物を「画像 + 小さな名前ラベル + 枚数バッジ」の構成へ更新する。
-- タイルサイズは現在の 112px 正方形よりやや大きめに見直し、モック相当の 2 行 3 列前後が収まるサイズを基準にする。
-- 選択状態は黄色背景ではなく、新デザインに馴染む枠線・明度差・影の組み合わせへ変更する。
-- `GetOwnedStickerCount()` の表示は既存どおり `xN` を継続するが、バッジ位置と色を新デザインに合わせる。
+### 4. シールセルの視認性確保
+- 背景変更後に `.sticker-cell` の白タイル、`.sticker-cell__count` の黒系バッジ、`.sticker-cell--selected` の選択色が埋もれないか確認する。
+- 必要なら `.sticker-cell` の背景色、枠色、選択色のみ微修正し、セル構造や `CreateStickerCell()` の生成内容は変えない。
+- `sticker-cell__image` の表示ルールは維持し、画像未設定時もレイアウトが壊れないことを前提にする。
 
-### 5. ショップカード生成の刷新
-- `CreateStickerShopCard()` はカード全体ボタンの中に `imageFrame`、`nameLabel`、`pricePlate` を組み立てる。
-- 画像領域は黄緑背景 + 大きめ画像表示とし、名称は画像領域の下側寄せで白文字表示する。
-- 価格は白い独立プレート上にピンク文字で数値のみ表示する。
-- 無効状態では `sticker-shop-card--disabled` に加え、画像、名称、価格プレートの子要素にも一貫した減衰クラスを当てられる構成にする。
-
-### 6. コインアイコン追加
-- コインアイコンは新規画像をプロジェクトへ追加し、UI Toolkit の背景画像として参照する。
-- 参照方法は以下のいずれかに統一する。
-  - UXML 上の `VisualElement` に背景画像を直接設定
-  - `HudScreenBinder` の SerializedField で `Sprite` を受け、起動時に `StyleBackground` を設定
-- 既存コードとの整合と差し替え容易性を優先し、実装時には参照方法を 1 つに固定する。
+### 5. Binder 影響確認
+- [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs#L59) 付近の要素取得名は、UXML の name を変えない限り変更不要とする。
+- もし内側下敷き用の新要素追加で取得対象が増えないなら、C# 修正は行わない。
+- UXML を変更した場合のみ、`OnEnable()` の null チェック対象と参照名を同期更新する。
 
 ## リスクと対策
-- UXML の階層変更で `root.Q()` が要素取得に失敗する可能性がある。
-  - 計画どおり要素名を一覧化し、`OnEnable()` の取得対象をまとめて見直す。
-- ショップカードの見た目を強く変えると、無効状態や hover 時の視認性が落ちる可能性がある。
-  - 通常 / hover / active / disabled を USS で明示的に個別定義する。
-- 数値主体表示へ変更すると、既存の `お金：` 前提ログや UI 文言と不整合が出る可能性がある。
-  - UI 表示だけを変更し、ログ文言と内部変数名は変更しない。
-- コインアイコンの追加先が散ると後で差し替えしづらい。
-  - 追加先ディレクトリを UI 用アセットに寄せ、用途が分かるファイル名にする。
-- 左下パネルのタイルサイズを上げると、一覧件数が増えた時の可視件数が減る。
-  - 初期表示件数とスクロール操作性のバランスを見て、2 行表示を優先する。
+- `bottom-left-sticker-panel` に濃いピンク背景を直接付けると、`sticker-list-header` と `sticker-list-body` の角丸が二重に見える可能性がある。
+  - 外側コンテナと内側下敷きの角丸役割を分け、どちらが外周を担当するかを先に決める。
+- 薄いピンク下敷きの余白が不足すると、スクロール領域が外枠に貼り付きショップらしさが出ない。
+  - `sticker-list-body` の padding を基準値として、`StickerShopScreen.uss` の `24px` 前後に寄せて比較する。
+- 背景色変更により選択状態が目立たなくなる可能性がある。
+  - `.sticker-cell--selected` の背景色または枠色を調整し、通常セルとの差分を維持する。
+- UXML を触る場合、`HudScreenBinder` の要素取得失敗で `シール一覧 UI が見つかりません` エラーが出る可能性がある。
+  - name 属性は原則維持し、変更が必要な場合は Binder の参照更新を同時に行う。
 
 ## 検証方針
-- 手動確認1: 通常時の HUD 左上にピンク背景 + コインアイコン + 数値主体の所持金表示が出る。
-- 手動確認2: 所持金が変化すると HUD 左上とショップ内の表示が同じ値へ即時更新される。
-- 手動確認3: 左下の所持シール一覧がピンクヘッダー付きパネルで表示され、所持 0 件時も崩れない。
-- 手動確認4: ショップを開くと右側に大型ピンクパネルが表示され、`シールショップ` タイトルと `X` 閉じるボタンが見える。
-- 手動確認5: ショップカードが 3 列グリッドで並び、画像、名称、価格プレートがモックに近い配置で表示される。
-- 手動確認6: 残高不足カードが無効見た目となり、クリックしても購入されない。
-- 手動確認7: 購入すると所持シール一覧が新デザインのまま更新され、先頭へ追加される。
-- 手動確認8: ショップと妖精コレクションの排他表示、フェーズ切替、既存ログ出力が退行しない。
+- 手動確認1: 通常 HUD 表示時、左下 `シール一覧` パネル全体が濃いピンクの外側コンテナに見える。
+- 手動確認2: タイトル下の一覧領域が薄いピンクの下敷きとして表示され、ショップの `content-frame` と同系列に見える。
+- 手動確認3: 所持シール 0 件時でも空表示が薄いピンク領域内に収まり、背景構造が崩れない。
+- 手動確認4: 所持シール複数件時にスクロールが正常動作し、セルが外枠からはみ出さない。
+- 手動確認5: シール選択時のハイライトと所持数バッジが背景に埋もれず視認できる。
+- 手動確認6: ショップ開閉、フェーズ切替、所持シール更新後も `シール一覧` パネルが崩れない。
 
 ## コードスニペット
-```csharp
-private void UpdateMoneyLabels()
-{
-    RefreshMoneyLabelReferences();
+```css
+#bottom-left-sticker-panel {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 590px;
+    height: 504px;
+    padding: 18px 18px 18px 18px;
+    background-color: rgb(245, 127, 155);
+    border-top-right-radius: 18px;
+}
 
-    int balance = currencyBalanceSource != null ? currencyBalanceSource.CurrentBalance : 0;
-    string text = balance.ToString("N0");
+#sticker-list-header {
+    min-height: 72px;
+    padding-left: 12px;
+    padding-right: 12px;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0);
+}
 
-    if (moneyLabel != null)
-    {
-        moneyLabel.text = text;
-    }
-
-    if (stickerShopMoneyLabel != null)
-    {
-        stickerShopMoneyLabel.text = text;
-    }
+#sticker-list-body {
+    flex-grow: 1;
+    padding: 24px;
+    background-color: rgb(255, 218, 226);
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
 }
 ```
 
 ```csharp
-private Button CreateStickerShopCard(StickerDefinition item)
+private void OnEnable()
 {
-    Button card = new();
-    card.AddToClassList("sticker-shop-card");
+    root = uiDocument.rootVisualElement;
+    stickerPanel = root.Q<VisualElement>("bottom-left-sticker-panel");
+    stickerScrollView = root.Q<ScrollView>("sticker-scroll-view");
+    emptyStickerListLabel = root.Q<Label>("empty-sticker-list-label");
 
-    VisualElement imageFrame = new();
-    imageFrame.AddToClassList("sticker-shop-card__image-frame");
-
-    VisualElement image = new();
-    image.AddToClassList("sticker-shop-card__image");
-    if (item != null && item.Icon != null)
+    if (stickerPanel == null || stickerScrollView == null)
     {
-        image.style.backgroundImage = new StyleBackground(item.Icon.texture);
+        Debug.LogError("シール一覧 UI が見つかりません");
+        return;
     }
-
-    Label name = new();
-    name.AddToClassList("sticker-shop-card__name");
-    name.text = string.IsNullOrWhiteSpace(item?.DisplayName) ? "名称未設定" : item.DisplayName;
-
-    VisualElement pricePlate = new();
-    pricePlate.AddToClassList("sticker-shop-card__price-plate");
-
-    Label price = new();
-    price.AddToClassList("sticker-shop-card__price");
-    price.text = item != null ? item.Price.ToString("N0") : "0";
-
-    imageFrame.Add(image);
-    imageFrame.Add(name);
-    pricePlate.Add(price);
-    card.Add(imageFrame);
-    card.Add(pricePlate);
-    return card;
 }
 ```

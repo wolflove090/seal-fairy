@@ -1,13 +1,12 @@
-# ショップUIと周辺UIブラッシュアップ ToDo
+# シール一覧UIショップ準拠調整 ToDo
 
-1. [Assets/UI/HubScreen/UXML/HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml) の HUD 構造を見直し、所持金パネルと所持シール一覧パネルのラッパー要素を追加する。
-2. [Assets/UI/HubScreen/USS/HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss) を更新し、ピンク基調の所持金パネル、シール一覧パネル、右下メニューの新スタイルを定義する。
-3. コインアイコン用の新規画像アセットを追加し、UI から参照できる配置先と命名を確定する。
-4. [Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/UXML/StickerShopScreen.uxml) を更新し、ヘッダー、閉じるボタン、コンテンツフレームをモック準拠へ組み替える。
-5. [Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss) を更新し、ショップオーバーレイ、カード、価格プレート、無効状態の新スタイルを定義する。
-6. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の要素取得名と初期化処理を UXML 変更に合わせて更新する。
-7. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の所持金表示更新を数値主体フォーマットへ変更する。
-8. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateStickerCell()` を更新し、所持シールタイルの内部構造とクラス名を新デザインへ合わせる。
-9. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateStickerShopCard()` を更新し、ショップカードを画像領域 + 名称 + 価格プレート構成へ変更する。
-10. [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) の参照設定を確認し、必要ならコインアイコンや更新済み UXML アセットが正しく割り当たるようにする。
-11. Unity 実行確認で、通常 HUD、ショップ表示、購入可否、購入後更新、妖精画面との排他表示、フェーズ切替の退行がないことを検証する。
+1. [シール一覧UIショップ準拠調整要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/シール一覧UIショップ準拠調整要件書.md) を再確認し、対象が `シール一覧` パネルのみであることを確認する。
+2. [StickerShopScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/StickerShopScreen/USS/StickerShopScreen.uss) から、濃いピンク外側コンテナと薄いピンク内側コンテンツの配色・余白・角丸の基準値を拾う。
+3. [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml) の `bottom-left-sticker-panel`、`sticker-list-header`、`sticker-list-body` の構造を確認し、USS だけで対応できるか判断する。
+4. [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss) を更新し、`bottom-left-sticker-panel` を濃いピンク背景の外側コンテナに変更する。
+5. [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss) を更新し、`sticker-list-body` を薄いピンクの下敷きとして見えるよう余白・角丸・背景色を調整する。
+6. 必要に応じて [HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss) の `sticker-list-header` 背景と余白を調整し、ヘッダーだけ別色に見えないようにする。
+7. 背景変更後にセル視認性が落ちる場合のみ、[HudScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/USS/HudScreen.uss) の `.sticker-cell`、`.sticker-cell--selected`、`.sticker-cell__count` を最小限調整する。
+8. UXML 構造変更が必要な場合のみ [HudScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/HubScreen/UXML/HudScreen.uxml) を更新し、name 属性の互換性を維持する。
+9. UXML を変更した場合のみ [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の取得名と null チェックを同期する。
+10. Unity 上で通常 HUD、空表示、複数件表示、スクロール、選択状態、ショップ開閉、フェーズ切替の退行がないことを確認する。

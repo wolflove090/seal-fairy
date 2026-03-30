@@ -105,6 +105,9 @@
     bottom: 0;
     width: 590px;
     height: 504px;
+    padding: 18px;
+    background-color: rgb(245, 127, 155);
+    border-top-right-radius: 18px;
 }
 
 #sticker-list-title {
@@ -114,18 +117,19 @@
 }
 
 #sticker-list-header {
-    height: 84px;
-    padding-left: 24px;
+    min-height: 72px;
+    padding-left: 12px;
+    padding-right: 12px;
     justify-content: center;
-    background-color: rgb(255, 96, 118);
-    border-top-left-radius: 18px;
-    border-top-right-radius: 18px;
+    background-color: rgba(0, 0, 0, 0);
 }
 
 #sticker-list-body {
     flex-grow: 1;
-    padding: 18px;
+    padding: 24px;
     background-color: rgb(255, 218, 226);
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
     border-bottom-left-radius: 18px;
     border-bottom-right-radius: 18px;
 }
@@ -154,23 +158,26 @@
     border-top-right-radius: 12px;
     border-bottom-left-radius: 12px;
     border-bottom-right-radius: 12px;
-    border-left-width: 3px;
-    border-right-width: 3px;
+    border-left-width: 2px;
+    border-right-width: 2px;
     border-top-width: 3px;
-    border-bottom-width: 3px;
-    border-left-color: rgba(0, 0, 0, 0);
-    border-right-color: rgba(0, 0, 0, 0);
-    border-top-color: rgba(0, 0, 0, 0);
-    border-bottom-color: rgba(0, 0, 0, 0);
+    border-bottom-width: 4px;
+    border-left-color: rgb(236, 236, 236);
+    border-right-color: rgb(214, 214, 214);
+    border-top-color: rgb(255, 255, 255);
+    border-bottom-color: rgb(196, 196, 196);
     position: relative;
+    translate: 0 0;
+    transition-property: translate, scale, background-color;
+    transition-duration: 0.1s;
 }
 
 .sticker-cell--selected {
     background-color: rgb(255, 244, 204);
-    border-left-color: rgb(255, 140, 170);
-    border-right-color: rgb(255, 140, 170);
-    border-top-color: rgb(255, 140, 170);
-    border-bottom-color: rgb(255, 140, 170);
+    border-left-color: rgb(255, 174, 194);
+    border-right-color: rgb(245, 148, 176);
+    border-top-color: rgb(255, 210, 221);
+    border-bottom-color: rgb(233, 114, 151);
 }
 
 .sticker-cell__image {
@@ -202,6 +209,7 @@
 }
 
 #empty-sticker-list-label {
+    margin-bottom: 16px;
     font-size: 28px;
     color: rgb(120, 120, 120);
     white-space: normal;

@@ -166,7 +166,7 @@
 }
 
 .sticker-shop-card__price-plate {
-    margin-top: -6px;
+    margin-top: -20px;
     height: 68px;
     justify-content: center;
     align-items: center;
