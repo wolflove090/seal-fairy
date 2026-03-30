@@ -24,7 +24,7 @@
     position: absolute;
     top: 0;
     right: 0;
-    width: 830px;
+    width: 840px;
     bottom: 0;
     padding-top: 18px;
     padding-left: 26px;
@@ -56,18 +56,24 @@
     border-top-right-radius: 20px;
     border-bottom-left-radius: 20px;
     border-bottom-right-radius: 20px;
-    border-left-width: 0;
-    border-right-width: 0;
-    border-top-width: 0;
-    border-bottom-width: 0;
+
     translate: 0 0;
     scale: 1;
     transition-property: translate, scale, background-color;
     transition-duration: 0.1s;
+
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-top-width: 3px;
+    border-bottom-width: 4px;
+    border-left-color: rgb(230, 230, 230);
+    border-right-color: rgb(210, 210, 210);
+    border-top-color: rgb(255, 255, 255);
+    border-bottom-color: rgb(200, 200, 200);
 }
 
 #sticker-shop-close-button:hover {
-    background-color: rgb(248, 248, 248);
+    background-color: rgb(235, 235, 235);
 }
 
 #sticker-shop-close-button:active {
@@ -122,7 +128,7 @@
     padding: 18px;
     justify-content: flex-end;
     align-items: center;
-    background-color: rgb(194, 217, 45);
+    background-color: rgb(255, 235, 239);
     border-top-left-radius: 18px;
     border-top-right-radius: 18px;
     border-bottom-left-radius: 18px;
@@ -132,10 +138,10 @@
     border-right-width: 2px;
     border-top-width: 3px;
     border-bottom-width: 4px;
-    border-left-color: rgb(194, 217, 45);
-    border-right-color: rgb(194, 217, 45);
-    border-top-color: rgb(220, 240, 70);
-    border-bottom-color: rgb(150, 170, 25);
+    /*border-left-color: rgb(194, 217, 45);
+    border-right-color: rgb(194, 217, 45);*/
+    border-top-color: rgb(255, 147, 170);
+    border-bottom-color: rgb(255, 255, 255);
 
     translate: 0 0;
     transition-property: translate, scale, background-color;
@@ -154,14 +160,14 @@
 .sticker-shop-card__name {
     margin-top: 8px;
     font-size: 28px;
-    color: rgb(255, 255, 255);
+    color: rgb(134, 80, 0);
     -unity-text-align: middle-center;
     white-space: normal;
 }
 
 .sticker-shop-card__price-plate {
     margin-top: -6px;
-    height: 56px;
+    height: 68px;
     justify-content: center;
     align-items: center;
     background-color: rgb(255, 255, 255);
@@ -186,9 +192,8 @@
 .sticker-shop-card__coin-icon {
     position: absolute;
     left: 8px;
-    top: -10px;
-    width: 28px;
-    height: 28px;
+    width: 58px;
+    height: 58px;
     background-image: resource('UI/coin_icon');
     -unity-background-scale-mode: scale-to-fit;
     background-repeat: no-repeat;
@@ -198,12 +203,12 @@
 
 .sticker-shop-card__price {
     font-size: 36px;
-    color: rgb(0, 0, 0);
+    color: rgb(134, 80, 0);
     -unity-text-align: middle-center;
 }
 
 .sticker-shop-card__price-plate:hover {
-    background-color: rgb(248, 248, 248);
+    background-color: rgb(235, 235, 235);
 }
 
 .sticker-shop-card__price-plate:active {
@@ -216,11 +221,14 @@
 
 .sticker-shop-card--disabled .sticker-shop-card__image-frame {
     background-color: rgb(160, 160, 160);
+    border-left-color: rgb(160, 160, 160);
+    border-right-color: rgb(160, 160, 160);
     border-top-color: rgb(190, 190, 190);
     border-bottom-color: rgb(120, 120, 120);
 }
 
 .sticker-shop-card--disabled .sticker-shop-card__price-plate:active {
+    opacity: 1;
     translate: 0 0;
     scale: 1;
 }
@@ -230,6 +238,7 @@
 }
 
 .sticker-shop-card--disabled .sticker-shop-card__price-plate {
+    opacity: 1;
     background-color: rgb(230, 230, 230);
     border-top-color: rgb(240, 240, 240);
     border-bottom-color: rgb(180, 180, 180);
