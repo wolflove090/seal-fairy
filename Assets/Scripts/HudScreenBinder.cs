@@ -624,6 +624,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         fairyCollectionOverlay.style.display = DisplayStyle.None;
     }
 
+    // 妖精コレクション画面の更新
     private void RefreshFairyCollection()
     {
         if (fairyCollectionScrollView == null || fairyCollectionEmptyLabel == null || fairyCollectionCountLabel == null)
@@ -638,7 +639,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         if(fairies == null || fairies.Count == 0)
         {
             fairyCollectionEmptyLabel.style.display = DisplayStyle.Flex;
-            fairyCollectionCountLabel.text = "発見した数: 0/0";
+            fairyCollectionCountLabel.text = "0/0";
             return;
         }
 
@@ -650,9 +651,10 @@ public sealed class HubScreenBinder : MonoBehaviour
             fairyCollectionScrollView.Add(CreateFairyCard(fairy, isDiscovered));
         }
 
-        fairyCollectionCountLabel.text = $"発見した数: {FairyCollectionService.GetDiscoveredCount(fairies)}/{fairies.Count}";
+        fairyCollectionCountLabel.text = $"{FairyCollectionService.GetDiscoveredCount(fairies)}/{fairies.Count}";
     }
 
+    // 妖精コレクションカードの作成
     private VisualElement CreateFairyCard(FairyDefinition fairy, bool isDiscovered)
     {
         VisualElement card = new();
@@ -662,24 +664,33 @@ public sealed class HubScreenBinder : MonoBehaviour
         nameLabel.AddToClassList("fairy-card__name");
         nameLabel.text = isDiscovered && fairy != null ? fairy.DisplayName : "？？？";
 
+        VisualElement imageFrame = new();
+        imageFrame.AddToClassList("fairy-card__image-frame");
+
         VisualElement image = new();
         image.AddToClassList("fairy-card__image");
-        if(!isDiscovered)
-        {
-            image.AddToClassList("fairy-card__image--undiscovered");
-        }
-        else if(fairy != null && fairy.Icon != null)
+        if(isDiscovered && fairy != null && fairy.Icon != null)
         {
             image.style.backgroundImage = new StyleBackground(fairy.Icon.texture);
         }
+        else
+        {
+            image.AddToClassList("fairy-card__image--undiscovered");
+        }
 
         Label detailLabel = new();
-        detailLabel.AddToClassList("fairy-card__detail");
-        detailLabel.text = isDiscovered ? "好きなシール: ポップ・小さい\n妖精の説明" : "好きなシール: ポップ・小さい\n未発見";
+        detailLabel.AddToClassList("fairy-card__detail-label");
+        detailLabel.text = "好きなシール：";
 
+        Label detailValue = new();
+        detailValue.AddToClassList("fairy-card__detail-value");
+        detailValue.text = isDiscovered ? "クール/ワイルド" : "未発見";
+
+        imageFrame.Add(image);
         card.Add(nameLabel);
-        card.Add(image);
+        card.Add(imageFrame);
         card.Add(detailLabel);
+        card.Add(detailValue);
         return card;
     }
 

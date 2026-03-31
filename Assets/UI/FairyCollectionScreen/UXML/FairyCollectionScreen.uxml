@@ -1,14 +1,18 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss?fileID=7433441132597879392&amp;guid=a0288d6b5e9eb4e699aea55b9fc358e4&amp;type=3#FairyCollectionScreen"/>
     <ui:VisualElement name="fairy-collection-overlay">
-        <ui:Button name="fairy-collection-backdrop"/>
+        <ui:Button name="fairy-collection-backdrop" />
         <ui:VisualElement name="fairy-collection-panel">
-            <ui:Label name="fairy-collection-title" text="妖精一覧"/>
-            <ui:Label name="fairy-collection-empty-label" text="妖精が登録されていません"/>
-            <ui:ScrollView name="fairy-collection-scroll-view" mode="Vertical"/>
+            <ui:VisualElement name="fairy-collection-header">
+                <ui:Label name="fairy-collection-title" text="妖精コレクション" />
+                <ui:Button name="fairy-collection-close-button" text="X" />
+            </ui:VisualElement>
+            <ui:VisualElement name="fairy-collection-content-frame">
+                <ui:Label name="fairy-collection-empty-label" text="妖精が登録されていません" />
+                <ui:ScrollView name="fairy-collection-scroll-view" mode="Vertical" />
+            </ui:VisualElement>
             <ui:VisualElement name="fairy-collection-footer">
-                <ui:Button name="fairy-collection-close-button" text="閉じる"/>
-                <ui:Label name="fairy-collection-count-label" text="発見した数: 0/0"/>
+                <ui:Label name="fairy-collection-count-label" text="0/0" />
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>
