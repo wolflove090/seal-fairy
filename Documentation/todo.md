@@ -1,11 +1,10 @@
-# 妖精コレクション画面ブラッシュアップ ToDo
+# 妖精コレクション未発見画像transparent表示 ToDo
 
-1. [妖精コレクション画面ブラッシュアップ要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/妖精コレクション画面ブラッシュアップ要件書.md) を再確認し、右側固定パネル、右上 `X`、3 列カード、右下 `X/Y` が必須要件であることを確認する。
-2. [FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/UXML/FairyCollectionScreen.uxml) の現状構造を整理し、維持すべき `name` が `fairy-collection-overlay`、`fairy-collection-backdrop`、`fairy-collection-scroll-view`、`fairy-collection-empty-label`、`fairy-collection-count-label`、`fairy-collection-close-button` であることを確認する。
-3. [FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/UXML/FairyCollectionScreen.uxml) を、ヘッダー、内側フレーム、フッターを持つ新レイアウトへ更新する。
-4. [FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss) の既存灰色オーバーレイと単純カード定義を、右側大型ピンクパネルと黄緑カード前提のスタイルへ置き換える。
-5. スクロールコンテナのカード幅、余白、パネル幅を調整し、1920x1080 基準で 3 列レイアウトになるようにする。
-6. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `RefreshFairyCollection()` を確認し、空表示、発見数表示、スクロールビュー更新が新レイアウトでも成立するよう文言を調整する。
-7. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateFairyCard()` を更新し、名前、画像フレーム、`好きなシール：`、値表示の 4 ブロック構造へ組み替える。
-8. 未発見カードが `？？？` と `未発見` を表示し、発見済みカードが `クール/ワイルド` を表示することを C# と USS の両面で確認する。
-9. Unity 上で開閉導線、ショップとの排他表示、3 列表示、縦スクロール、右下 `X/Y` 表示、未発見見た目を確認する。
+1. [妖精コレクション未発見画像transparent表示要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/妖精コレクション未発見画像transparent表示要件書.md) を再確認し、未発見画像を `transparent` 素材へ差し替えること、補足文は `クール/ワイルド` を維持することを確認する。
+2. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `InitializeFairyCollectionUi()` と `CreateFairyCard()` の現状を確認し、`transparent` 素材の読込場所と適用分岐を確定する。
+3. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に未発見画像用のキャッシュフィールドを追加し、`Resources.Load<Texture2D>("transparent")` で [transparent.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Texture/Resources/transparent.png) を取得する。
+4. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateFairyCard()` を更新し、発見済みは `fairy.Icon.texture`、未発見は `transparent` 素材、取得失敗時のみ `.fairy-card__image--undiscovered` を使う分岐へ変更する。
+5. 未発見カードで `？？？` と `クール/ワイルド` が維持され、発見済みカードの画像表示ロジックに影響しないことをコード上で確認する。
+6. [FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss) の `.fairy-card__image--undiscovered` を確認し、`transparent` 素材読込成功時には不要な見た目上書きが発生しないことを整理する。
+7. Unity 上で妖精コレクションを開き、発見済みカードは通常アイコン、未発見カードは `transparent` 素材、件数表示 `X/Y`、スクロール、閉じる操作が正常であることを確認する。
+8. `transparent` 素材を一時的に読めないケースを想定し、未発見カードがフォールバック表示でもエラー停止しないことを確認する。

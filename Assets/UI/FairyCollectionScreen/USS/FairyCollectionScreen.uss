@@ -240,6 +240,7 @@
     white-space: normal;
 }
 
+/* transparent 読込失敗時のみ使うフォールバック */
 .fairy-card__image--undiscovered {
     opacity: 0.45;
 }

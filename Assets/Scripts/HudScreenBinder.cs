@@ -34,6 +34,7 @@ public sealed class HubScreenBinder : MonoBehaviour
     private Label fairyCollectionEmptyLabel;
     private Label fairyCollectionCountLabel;
     private Button fairyCollectionCloseButton;
+    private Texture2D undiscoveredFairyImageTexture;
     private VisualElement stickerShopOverlay;
     private Button stickerShopBackdrop;
     private VisualElement stickerShopPanel;
@@ -192,6 +193,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         fairyCollectionEmptyLabel = root.Q<Label>("fairy-collection-empty-label");
         fairyCollectionCountLabel = root.Q<Label>("fairy-collection-count-label");
         fairyCollectionCloseButton = root.Q<Button>("fairy-collection-close-button");
+        LoadUndiscoveredFairyImageTexture();
 
         if (fairyCollectionOverlay == null ||
             fairyCollectionBackdrop == null ||
@@ -206,6 +208,16 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         fairyCollectionOverlay.style.display = DisplayStyle.None;
+    }
+
+    private void LoadUndiscoveredFairyImageTexture()
+    {
+        if (undiscoveredFairyImageTexture != null)
+        {
+            return;
+        }
+
+        undiscoveredFairyImageTexture = Resources.Load<Texture2D>("transparent");
     }
 
     private void InitializeStickerShopUi(VisualElement root)
@@ -669,9 +681,13 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         VisualElement image = new();
         image.AddToClassList("fairy-card__image");
-        if(isDiscovered && fairy != null && fairy.Icon != null)
+        if (isDiscovered && fairy != null && fairy.Icon != null)
         {
             image.style.backgroundImage = new StyleBackground(fairy.Icon.texture);
+        }
+        else if (undiscoveredFairyImageTexture != null)
+        {
+            image.style.backgroundImage = new StyleBackground(undiscoveredFairyImageTexture);
         }
         else
         {
