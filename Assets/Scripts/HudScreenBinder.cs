@@ -684,7 +684,7 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         Label detailValue = new();
         detailValue.AddToClassList("fairy-card__detail-value");
-        detailValue.text = isDiscovered ? "クール/ワイルド" : "未発見";
+        detailValue.text = "クール/ワイルド";
 
         imageFrame.Add(image);
         card.Add(nameLabel);

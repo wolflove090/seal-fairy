@@ -138,10 +138,10 @@
     border-right-width: 2px;
     border-top-width: 3px;
     border-bottom-width: 4px;
-    /*border-left-color: rgb(194, 217, 45);
-    border-right-color: rgb(194, 217, 45);*/
-    border-top-color: rgb(255, 147, 170);
-    border-bottom-color: rgb(255, 255, 255);
+    border-left-color: rgb(255, 200, 213);
+    border-right-color: rgb(255, 188, 203);
+    border-top-color: rgb(255, 235, 239);
+    border-bottom-color: rgb(247, 167, 186);
 
     translate: 0 0;
     transition-property: translate, scale, background-color;
