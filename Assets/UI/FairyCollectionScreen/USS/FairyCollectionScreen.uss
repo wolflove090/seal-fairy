@@ -194,6 +194,19 @@
     border-right-color: rgb(255, 188, 203);
     border-top-color: rgb(255, 235, 239);
     border-bottom-color: rgb(247, 167, 186);
+    color: rgb(134, 80, 0);
+    -unity-text-align: upper-left;
+    transition-property: translate, scale, background-color;
+    transition-duration: 0.1s;
+}
+
+.fairy-card:hover {
+    background-color: rgb(255, 228, 234);
+}
+
+.fairy-card:active {
+    translate: 0 3px;
+    scale: 0.985;
 }
 
 /* カード名 */
@@ -248,4 +261,140 @@
 .fairy-card--undiscovered .fairy-card__name,
 .fairy-card--undiscovered .fairy-card__detail-value {
     color: rgb(170, 130, 138);
+}
+
+.fairy-card--locked {
+    opacity: 0.82;
+}
+
+.fairy-card--locked:hover {
+    background-color: rgb(255, 218, 226);
+}
+
+.fairy-card--locked:active {
+    translate: 0 0;
+    scale: 1;
+}
+
+#fairy-detail-overlay {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: none;
+}
+
+#fairy-detail-backdrop {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background-color: rgba(48, 19, 34, 0.55);
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+}
+
+#fairy-detail-panel {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 640px;
+    min-height: 860px;
+    translate: -320px -430px;
+    padding-top: 34px;
+    padding-left: 30px;
+    padding-right: 30px;
+    padding-bottom: 38px;
+    background-color: rgb(244, 132, 164);
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    border-bottom-left-radius: 28px;
+    border-bottom-right-radius: 28px;
+}
+
+#fairy-detail-close-button {
+    position: absolute;
+    right: 24px;
+    top: 24px;
+    z-index: 1;
+    width: 92px;
+    height: 92px;
+    background-image: resource('UI/close_icon');
+    background-color: rgb(255, 255, 255);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 20px;
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-top-width: 3px;
+    border-bottom-width: 4px;
+    border-left-color: rgb(230, 230, 230);
+    border-right-color: rgb(210, 210, 210);
+    border-top-color: rgb(255, 255, 255);
+    border-bottom-color: rgb(200, 200, 200);
+    transition-property: translate, scale, background-color;
+    transition-duration: 0.1s;
+}
+
+#fairy-detail-close-button:hover {
+    background-color: rgb(235, 235, 235);
+}
+
+#fairy-detail-close-button:active {
+    background-color: rgb(235, 235, 235);
+    translate: 0 3px;
+    scale: 0.98;
+}
+
+#fairy-detail-name {
+    margin-top: 14px;
+    margin-bottom: 26px;
+    font-size: 54px;
+    color: rgb(255, 255, 255);
+}
+
+#fairy-detail-image-frame {
+    height: 360px;
+    margin-bottom: 28px;
+    padding: 20px;
+    background-color: rgb(255, 235, 239);
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    border-bottom-left-radius: 24px;
+    border-bottom-right-radius: 24px;
+}
+
+#fairy-detail-image {
+    width: 100%;
+    height: 100%;
+    -unity-background-scale-mode: scale-to-fit;
+    background-repeat: no-repeat;
+    background-position-x: center;
+    background-position-y: center;
+}
+
+#fairy-detail-favorite-label,
+#fairy-detail-flavor-label {
+    margin-bottom: 8px;
+    font-size: 28px;
+    color: rgb(255, 240, 244);
+}
+
+#fairy-detail-favorite-value,
+#fairy-detail-flavor-value {
+    margin-bottom: 24px;
+    padding: 18px 20px;
+    font-size: 30px;
+    color: rgb(134, 80, 0);
+    white-space: normal;
+    background-color: rgb(255, 218, 226);
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
 }

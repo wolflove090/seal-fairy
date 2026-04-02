@@ -1,147 +1,178 @@
-# 妖精コレクション未発見画像transparent表示 実装計画
+# 妖精コレクション詳細画面 実装計画
 
 ## 実装方針
-- 対象は [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) と [FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss) に限定し、妖精コレクション画面の構造や発見状態管理は変更しない。
-- 未発見カードの画像欄は、従来の「CSS クラスで伏せ見た目を付けるだけ」の方式から、`Assets/GameResources/Texture/Resources/transparent.png` を読み込んで背景画像として設定する方式へ切り替える。
-- `FairyDefinition` や `FairyCollectionService` には手を入れず、カード生成責務を持つ `HudScreenBinder.CreateFairyCard()` 内で発見済みと未発見の画像設定を分岐する。
-- `transparent` 素材の取得失敗時は、現行の `fairy-card__image--undiscovered` クラスによる見た目を残してフォールバックできる構成にする。
-- ユーザー確認済みの通り、未発見カード下部の補足文は現行実装の `クール/ワイルド` を維持する。
+- 対象は既存の妖精コレクション画面を構成する [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)、[FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/UXML/FairyCollectionScreen.uxml)、[FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss) を中心とし、新規画面を別管理するのではなく一覧画面内モーダルとして拡張する。
+- 一覧カードは現状 `VisualElement` で動的生成しているため、詳細画面起動のクリック導線を追加するために、カード全体を `Button` ベースへ変更するか、クリック可能なラッパー要素を持たせる。
+- 未発見妖精は要件どおり選択不可にするため、カード生成時点で `isDiscovered` に応じたクリック可否と見た目を分離する。
+- 詳細画面に表示するデータは既存の `FairyDefinition.DisplayName`、`FairyDefinition.Icon`、固定文言の `クール/ワイルド`、固定フレーバーテキストを利用し、`FairyDefinition` の serialized field は増やさない。
+- 配色は既存のピンク系 UI に統一し、添付画像の情報構造のみ参考にして緑系配色は採用しない。
 
 ## 変更対象ファイル一覧
 - [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs)
-  - `transparent` 素材を保持する参照を追加する。
-  - 妖精コレクション UI 初期化時、または初回利用時に `Resources.Load<Texture2D>("transparent")` で素材を取得する。
-  - `CreateFairyCard()` の未発見分岐で `transparent` 素材を背景画像へ設定し、取得失敗時のみ既存クラスへフォールバックする。
+  - 詳細画面用 UI 参照、開閉制御、選択中妖精の反映処理を追加する。
+  - 一覧カード生成処理を、発見済みのみ選択可能な構造へ変更する。
+  - 一覧画面を閉じる際に詳細画面も必ず閉じる制御を追加する。
+- [Assets/UI/FairyCollectionScreen/UXML/FairyCollectionScreen.uxml](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/UXML/FairyCollectionScreen.uxml)
+  - 既存一覧オーバーレイの中に、詳細モーダル用の背景オーバーレイ、パネル、タイトル、画像枠、詳細文言、閉じるボタンの要素を追加する。
 - [Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss](/Users/tatsuki/Projects/Unity/SealFairy/Assets/UI/FairyCollectionScreen/USS/FairyCollectionScreen.uss)
-  - `fairy-card__image--undiscovered` をフォールバック用スタイルとして残す。
-  - `transparent` 素材適用時に不要な色味が強く残らないよう、未発見カード画像欄の背景色・不透明度の役割を整理する。
+  - 詳細モーダルのレイアウトとピンク基調スタイルを追加する。
+  - 一覧カードの選択可能状態、未発見の非活性状態、詳細モーダル表示中の視認性を調整する。
 
 ## データフロー / 処理フロー
-1. [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の初期化処理で妖精コレクション UI を準備する。
-2. 同クラス内で `transparent` 素材を `Resources` から取得し、後続のカード生成で再利用できるよう保持する。
-3. `OpenFairyCollection()` 実行時に `RefreshFairyCollection()` が全妖精一覧を取得する。
-4. 各妖精について `FairyCollectionService.IsDiscovered(fairy.Id)` を評価し、`CreateFairyCard(fairy, isDiscovered)` を呼ぶ。
-5. 発見済みなら `fairy.Icon.texture` を画像欄に設定する。
-6. 未発見なら保持済みの `transparent` 素材を画像欄に設定する。素材未取得時は `fairy-card__image--undiscovered` を付与して従来見た目に戻す。
-7. 生成したカードを `fairyCollectionScrollView` に追加し、件数表示は既存どおり `GetDiscoveredCount(fairies)` で更新する。
+1. ユーザーが HUD の `妖精` ボタンを押すと、`OpenFairyCollection()` が呼ばれ、ショップを閉じたうえで `RefreshFairyCollection()` を実行し、一覧オーバーレイを表示する。
+2. `RefreshFairyCollection()` は `FairyCatalogSource.GetFairies()` で全妖精を取得し、各要素に対して `FairyCollectionService.IsDiscovered(fairy.Id)` を評価する。
+3. `CreateFairyCard(fairy, isDiscovered)` はカードの見た目を組み立てると同時に、発見済みなら `OpenFairyDetail(fairy)` を呼ぶクリックイベントを登録する。未発見なら非活性スタイルのみを付与し、クリックイベントは登録しない。
+4. `OpenFairyDetail(fairy)` は選択中妖精を検証し、詳細モーダルの各 UI 要素へ名前、画像、固定好きなシール文言、固定フレーバーテキストを設定して詳細オーバーレイを表示する。
+5. 詳細表示中に `X` ボタンまたは背景オーバーレイが押されると `CloseFairyDetail()` を実行し、詳細モーダルだけを閉じて一覧表示へ戻す。
+6. 一覧画面自体を `CloseFairyCollection()` で閉じる際は `CloseFairyDetail()` を先に呼び、詳細モーダルが残らない状態にしてから一覧オーバーレイを非表示にする。
 
 ## 詳細設計
 
-### 1. `transparent` 素材の参照方法
-- 既存プロジェクトには [transparent.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Texture/Resources/transparent.png) が `Resources` 配下に存在するため、コードからは `Resources.Load<Texture2D>("transparent")` で取得できる前提を採用する。
-- 毎回カード生成時に `Resources.Load` を呼ぶ必要はないため、`HubScreenBinder` に `private Texture2D undiscoveredFairyImageTexture;` のようなキャッシュ用フィールドを追加する。
-- 読み込みタイミングは `InitializeFairyCollectionUi()` の末尾、または専用のヘルパーメソッド経由とし、UI 初期化の責務範囲に収める。
-- 読み込み失敗時は `null` のまま保持し、例外を出さずに既存クラスフォールバックへ流す。
+### 1. UXML 構造拡張
+- 既存の `fairy-collection-overlay` 配下に、一覧パネルとは別レイヤーで `fairy-detail-overlay` を追加する。
+- `fairy-detail-overlay` は以下の子要素を持つ。
+  - `fairy-detail-backdrop`
+  - `fairy-detail-panel`
+  - `fairy-detail-close-button`
+  - `fairy-detail-name`
+  - `fairy-detail-image-frame`
+  - `fairy-detail-image`
+  - `fairy-detail-favorite-label`
+  - `fairy-detail-favorite-value`
+  - `fairy-detail-flavor-label`
+  - `fairy-detail-flavor-value`
+- 詳細モーダルは一覧オーバーレイ内で absolute 配置し、一覧カード群より前面に表示する。
 
-### 2. `CreateFairyCard()` の分岐設計
-- 現状の [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs#L658) では、発見済みだけ `fairy.Icon.texture` を背景画像へ設定し、それ以外は `fairy-card__image--undiscovered` クラスを付与している。
-- これを以下の優先順位に変更する。
-1. `isDiscovered && fairy != null && fairy.Icon != null` の場合は `fairy.Icon.texture` を設定する。
-2. 未発見かつ `undiscoveredFairyImageTexture != null` の場合は `transparent` 素材を設定する。
-3. どちらも満たさない場合のみ `fairy-card__image--undiscovered` を付与する。
-- 未発見カードに発見済み画像の残像が出ないよう、未発見分岐では必ず明示的に背景画像を上書きする。
-- 名前は従来どおり `？？？`、補足文は現行どおり `クール/ワイルド` を維持する。
+### 2. `HudScreenBinder` の状態管理
+- 既存の妖精一覧用フィールド群に加えて、詳細モーダル参照を保持する private フィールドを追加する。
+- 例:
+  - `private VisualElement fairyDetailOverlay;`
+  - `private Button fairyDetailBackdrop;`
+  - `private VisualElement fairyDetailPanel;`
+  - `private Button fairyDetailCloseButton;`
+  - `private Label fairyDetailNameLabel;`
+  - `private VisualElement fairyDetailImage;`
+  - `private Label fairyDetailFavoriteValueLabel;`
+  - `private Label fairyDetailFlavorValueLabel;`
+- `InitializeFairyCollectionUi()` で上記要素を取得し、欠損時は既存と同様にエラーログを出して return する。
+- `OnEnable()` / `OnDisable()` で詳細モーダルの閉じるイベント購読・解除を追加する。
 
-### 3. USS の整理方針
-- `transparent` 素材を直接表示する場合でも、画像フレーム自体のサイズ・余白・角丸は既存 `.fairy-card__image-frame` と `.fairy-card__image` を流用する。
-- `.fairy-card__image--undiscovered` は削除せず、素材取得失敗時の後方互換用スタイルとして残す。
-- 既存の未発見スタイルが強いグレー背景や高い不透明度を持っている場合、`transparent` 素材表示時の見た目を邪魔しないよう、クラス付与時だけ効く構成かを確認する。
-- 実装では「`transparent` 素材を設定したが、同時に未発見クラスを付けて上書きしてしまう」状態を避ける。
+### 3. 一覧カードのクリック構造
+- 既存 `CreateFairyCard()` は `VisualElement` を返しているが、選択可能にするため `Button` を返す構造へ変更するのが最小差分である。
+- `Button` のデフォルト見た目を抑えるため、USS 側でボタン由来の背景や境界線を打ち消し、現行カードと同じ外観を維持する。
+- 発見済みカードには `clickable.clicked += () => OpenFairyDetail(fairy);` 相当の処理を付与する。
+- 未発見カードには `SetEnabled(false)` は使わず、閉じる導線や見た目への副作用を避けるため、クリック未登録かつ専用クラス `fairy-card--locked` を付与する方針とする。
+- ホバーや押下演出は強くしすぎず、既存 UI のトーンに合わせて軽微な変化に留める。
 
-### 4. 初期化と責務分離
-- `InitializeFairyCollectionUi()` は現在、UI 要素取得と表示初期化のみを担当している。
-- 今回はここに素材参照の準備を追加するが、処理が膨らみすぎる場合は `LoadUndiscoveredFairyImageTexture()` のような private メソッドへ切り出す。
-- こうしておくと、後続で `transparent` 以外の未発見画像へ差し替える際も修正箇所が `HudScreenBinder` 内に閉じる。
+### 4. 詳細モーダル表示内容
+- 名前は `fairy.DisplayName` を `fairy-detail-name` に設定する。
+- 画像は `fairy.Icon.texture` があれば `fairy-detail-image` の背景画像に設定し、未設定なら背景画像をクリアして枠のみ表示する。
+- 好きなシールは固定で `クール/ワイルド` を設定する。
+- フレーバーテキストは固定文言を使用する。実装時は `private const string FairyDetailFlavorText = "ホゲホゲ。フガフガ あいうえお";` のように `HudScreenBinder` 内定数化しておくと追跡しやすい。
+- 将来データ化する可能性を考え、詳細反映処理は `ApplyFairyDetail(FairyDefinition fairy)` のような専用メソッドへ切り出す。
+
+### 5. 閉じる制御
+- `CloseFairyDetail()` は `fairyDetailOverlay.style.display = DisplayStyle.None;` を担当し、null 安全にする。
+- `CloseFairyCollection()` 冒頭で `CloseFairyDetail()` を呼ぶ。
+- `OpenFairyCollection()` 側でも一覧表示前に `CloseFairyDetail()` を呼んでおくと、再オープン時の残留を避けられる。
+
+### 6. USS 設計
+- 既存一覧はピンク背景と淡い内枠で構成されているため、詳細モーダルも濃いピンクの外枠、淡いピンクの内側、白寄りの画像フレームで統一する。
+- 添付画像の緑カード相当の面積は、ピンクからコーラル寄りの色へ置き換える。
+- `fairy-detail-overlay` は全面 absolute、`fairy-detail-backdrop` は半透明の黒またはグレー、`fairy-detail-panel` は中央寄せ配置とする。
+- `fairy-detail-close-button` はショップと同系統の白ベース角丸ボタンを流用しつつ、詳細パネル右上に重ねる。
+- 一覧カードには以下のスタイルを追加する。
+  - 選択可能カードのカーソル感と軽い押下表現
+  - 未発見カード `fairy-card--locked` の視覚的非活性
+  - ボタン化に伴う標準境界線、背景、padding の打ち消し
 
 ## リスクと対策
-- `Resources.Load` のパス指定を誤ると、未発見画像が表示されず静かに `null` になる。
-  - 取得先を `transparent` の単一文字列に固定し、設計書と実装コメントに参照元パスを明記する。
-- 未発見分岐で背景画像クリアが不十分だと、再利用された `VisualElement` に以前の画像が残る可能性がある。
-  - カード生成は毎回新規 `VisualElement` を作っている現状を維持し、未発見時も必ず背景画像設定またはクラス付与のどちらかを実行する。
-- `transparent` 素材が完全透明のため、画像欄が「何も出ていない」ように見える可能性がある。
-  - 画像フレーム側の背景色と枠線はそのまま残し、未発見でも画像欄の存在が視認できる前提にする。
-- USS 側の未発見クラスが強すぎると、将来の見た目調整で `transparent` 素材との責務が衝突する。
-  - クラスの役割を「フォールバック専用」と定義し、素材読込成功時は付与しない実装に統一する。
+- `Button` 化により既存カードレイアウトが崩れる可能性がある。
+  - USS で `background-color: rgba(0,0,0,0)`、border 幅 0、padding 0 を明示し、ボタン固有スタイルを打ち消す。
+- 詳細モーダルが一覧パネルのスクロールや背面クリックを貫通する可能性がある。
+  - 詳細モーダル専用 backdrop を一覧オーバーレイ全面に敷き、前面レイヤーでクリックを吸収する。
+- 未発見カードを無効化する実装方法次第で見た目やイベント伝播が壊れる可能性がある。
+  - `SetEnabled(false)` に依存せず、クリック未登録の通常要素として扱い、見た目のみ専用クラスで制御する。
+- 詳細文言が固定値のため、後続でデータ化する際に実装箇所が散る可能性がある。
+  - 反映ロジックを `ApplyFairyDetail()` にまとめ、定数も 1 箇所へ寄せる。
 
 ## 検証方針
-- 手動確認1: 妖精コレクションを開いたとき、発見済みカードは従来どおり各妖精アイコンが表示される。
-- 手動確認2: 未発見カードは画像欄が空ではなく、`transparent` 素材適用状態で表示される。
-- 手動確認3: 未発見カードでもカード枠、画像フレーム、名前 `？？？`、補足文 `クール/ワイルド` のレイアウトが崩れない。
-- 手動確認4: 件数表示 `X/Y`、スクロール、クローズ操作、ショップとの排他表示に回帰がない。
-- 手動確認5: `transparent` 素材を一時的に取得不能にしても、画面更新が停止せず、既存の未発見スタイルで描画される。
+- 手動確認1: 発見済み妖精カードを押すと詳細モーダルが開く。
+- 手動確認2: 未発見妖精カードを押しても詳細モーダルが開かない。
+- 手動確認3: 詳細モーダルに妖精名、画像、`クール/ワイルド`、固定フレーバーテキスト、閉じるボタンが表示される。
+- 手動確認4: `X` ボタンと背景タップの両方で詳細モーダルが閉じる。
+- 手動確認5: 詳細モーダルを開いた状態で一覧画面を閉じても、再表示時に詳細モーダルが残らない。
+- 手動確認6: ショップとの排他表示、件数表示 `X/Y`、一覧スクロールに回帰がない。
+- 手動確認7: 1920x1080 基準で、詳細モーダルの配色がピンク基調に統一され、緑系の面が残っていない。
 
 ## コードスニペット
 ```csharp
-private Texture2D undiscoveredFairyImageTexture;
+private const string FairyDetailFavoriteText = "クール/ワイルド";
+private const string FairyDetailFlavorText = "ホゲホゲ。フガフガ あいうえお";
 
-private void InitializeFairyCollectionUi(VisualElement root)
+private VisualElement fairyDetailOverlay;
+private Button fairyDetailBackdrop;
+private VisualElement fairyDetailPanel;
+private Button fairyDetailCloseButton;
+private Label fairyDetailNameLabel;
+private VisualElement fairyDetailImage;
+private Label fairyDetailFavoriteValueLabel;
+private Label fairyDetailFlavorValueLabel;
+```
+
+```csharp
+private void OpenFairyDetail(FairyDefinition fairy)
 {
-    if (root == null || fairyCollectionScreenAsset == null)
+    if (fairy == null || fairyDetailOverlay == null)
     {
         return;
     }
 
-    fairyCollectionOverlay = root.Q<VisualElement>("fairy-collection-overlay");
-    if (fairyCollectionOverlay == null)
+    ApplyFairyDetail(fairy);
+    fairyDetailOverlay.style.display = DisplayStyle.Flex;
+}
+
+private void ApplyFairyDetail(FairyDefinition fairy)
+{
+    fairyDetailNameLabel.text = string.IsNullOrWhiteSpace(fairy.DisplayName)
+        ? "名称未設定"
+        : fairy.DisplayName;
+
+    fairyDetailFavoriteValueLabel.text = FairyDetailFavoriteText;
+    fairyDetailFlavorValueLabel.text = FairyDetailFlavorText;
+
+    fairyDetailImage.style.backgroundImage = fairy != null && fairy.Icon != null
+        ? new StyleBackground(fairy.Icon.texture)
+        : StyleKeyword.None;
+}
+
+private void CloseFairyDetail()
+{
+    if (fairyDetailOverlay == null)
     {
-        fairyCollectionScreenAsset.CloneTree(root);
-        fairyCollectionOverlay = root.Q<VisualElement>("fairy-collection-overlay");
+        return;
     }
 
-    fairyCollectionBackdrop = root.Q<Button>("fairy-collection-backdrop");
-    fairyCollectionPanel = root.Q<VisualElement>("fairy-collection-panel");
-    fairyCollectionScrollView = root.Q<ScrollView>("fairy-collection-scroll-view");
-    fairyCollectionEmptyLabel = root.Q<Label>("fairy-collection-empty-label");
-    fairyCollectionCountLabel = root.Q<Label>("fairy-collection-count-label");
-    fairyCollectionCloseButton = root.Q<Button>("fairy-collection-close-button");
-    undiscoveredFairyImageTexture = Resources.Load<Texture2D>("transparent");
-
-    fairyCollectionOverlay.style.display = DisplayStyle.None;
+    fairyDetailOverlay.style.display = DisplayStyle.None;
 }
 ```
 
 ```csharp
 private VisualElement CreateFairyCard(FairyDefinition fairy, bool isDiscovered)
 {
-    VisualElement card = new();
+    Button card = new();
     card.AddToClassList("fairy-card");
 
-    Label nameLabel = new();
-    nameLabel.AddToClassList("fairy-card__name");
-    nameLabel.text = isDiscovered && fairy != null ? fairy.DisplayName : "？？？";
-
-    VisualElement imageFrame = new();
-    imageFrame.AddToClassList("fairy-card__image-frame");
-
-    VisualElement image = new();
-    image.AddToClassList("fairy-card__image");
-
-    if (isDiscovered && fairy != null && fairy.Icon != null)
+    if (isDiscovered && fairy != null)
     {
-        image.style.backgroundImage = new StyleBackground(fairy.Icon.texture);
-    }
-    else if (undiscoveredFairyImageTexture != null)
-    {
-        image.style.backgroundImage = new StyleBackground(undiscoveredFairyImageTexture);
+        card.clicked += () => OpenFairyDetail(fairy);
     }
     else
     {
-        image.AddToClassList("fairy-card__image--undiscovered");
+        card.AddToClassList("fairy-card--locked");
     }
 
-    Label detailLabel = new();
-    detailLabel.AddToClassList("fairy-card__detail-label");
-    detailLabel.text = "好きなシール：";
-
-    Label detailValue = new();
-    detailValue.AddToClassList("fairy-card__detail-value");
-    detailValue.text = "クール/ワイルド";
-
-    imageFrame.Add(image);
-    card.Add(nameLabel);
-    card.Add(imageFrame);
-    card.Add(detailLabel);
-    card.Add(detailValue);
+    // 既存の name / image / detail 組み立ては継続
     return card;
 }
 ```

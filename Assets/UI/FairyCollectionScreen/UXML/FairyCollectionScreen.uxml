@@ -15,5 +15,19 @@
                 <ui:Label name="fairy-collection-count-label" text="0/0" />
             </ui:VisualElement>
         </ui:VisualElement>
+        <ui:VisualElement name="fairy-detail-overlay">
+            <ui:Button name="fairy-detail-backdrop" />
+            <ui:VisualElement name="fairy-detail-panel">
+                <ui:Button name="fairy-detail-close-button" />
+                <ui:Label name="fairy-detail-name" text="妖精名" picking-mode="Ignore" />
+                <ui:VisualElement name="fairy-detail-image-frame" picking-mode="Ignore">
+                    <ui:VisualElement name="fairy-detail-image" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:Label name="fairy-detail-favorite-label" text="好きなシール：" picking-mode="Ignore" />
+                <ui:Label name="fairy-detail-favorite-value" text="クール/ワイルド" picking-mode="Ignore" />
+                <ui:Label name="fairy-detail-flavor-label" text="フレーバー：" picking-mode="Ignore" />
+                <ui:Label name="fairy-detail-flavor-value" text="ホゲホゲ。フガフガ あいうえお" picking-mode="Ignore" />
+            </ui:VisualElement>
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

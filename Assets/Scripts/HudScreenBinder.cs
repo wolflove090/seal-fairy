@@ -4,6 +4,9 @@ using UnityEngine.UIElements;
 
 public sealed class HubScreenBinder : MonoBehaviour
 {
+    private const string FairyDetailFavoriteText = "クール/ワイルド";
+    private const string FairyDetailFlavorText = "ホゲホゲ。フガフガ あいうえお";
+
     [SerializeField] private UIDocument uiDocument;
     [SerializeField] private OwnedStickerInventorySource inventorySource;
     [SerializeField] private FairyCatalogSource fairyCatalogSource;
@@ -34,6 +37,14 @@ public sealed class HubScreenBinder : MonoBehaviour
     private Label fairyCollectionEmptyLabel;
     private Label fairyCollectionCountLabel;
     private Button fairyCollectionCloseButton;
+    private VisualElement fairyDetailOverlay;
+    private Button fairyDetailBackdrop;
+    private VisualElement fairyDetailPanel;
+    private Button fairyDetailCloseButton;
+    private Label fairyDetailNameLabel;
+    private VisualElement fairyDetailImage;
+    private Label fairyDetailFavoriteValueLabel;
+    private Label fairyDetailFlavorValueLabel;
     private Texture2D undiscoveredFairyImageTexture;
     private VisualElement stickerShopOverlay;
     private Button stickerShopBackdrop;
@@ -104,6 +115,16 @@ public sealed class HubScreenBinder : MonoBehaviour
             fairyCollectionBackdrop.clicked += CloseFairyCollection;
         }
 
+        if (fairyDetailCloseButton != null)
+        {
+            fairyDetailCloseButton.clicked += CloseFairyDetail;
+        }
+
+        if (fairyDetailBackdrop != null)
+        {
+            fairyDetailBackdrop.clicked += CloseFairyDetail;
+        }
+
         if (stickerShopCloseButton != null)
         {
             stickerShopCloseButton.clicked += CloseStickerShop;
@@ -160,6 +181,16 @@ public sealed class HubScreenBinder : MonoBehaviour
             fairyCollectionBackdrop.clicked -= CloseFairyCollection;
         }
 
+        if (fairyDetailCloseButton != null)
+        {
+            fairyDetailCloseButton.clicked -= CloseFairyDetail;
+        }
+
+        if (fairyDetailBackdrop != null)
+        {
+            fairyDetailBackdrop.clicked -= CloseFairyDetail;
+        }
+
         if (stickerShopCloseButton != null)
         {
             stickerShopCloseButton.clicked -= CloseStickerShop;
@@ -193,6 +224,14 @@ public sealed class HubScreenBinder : MonoBehaviour
         fairyCollectionEmptyLabel = root.Q<Label>("fairy-collection-empty-label");
         fairyCollectionCountLabel = root.Q<Label>("fairy-collection-count-label");
         fairyCollectionCloseButton = root.Q<Button>("fairy-collection-close-button");
+        fairyDetailOverlay = root.Q<VisualElement>("fairy-detail-overlay");
+        fairyDetailBackdrop = root.Q<Button>("fairy-detail-backdrop");
+        fairyDetailPanel = root.Q<VisualElement>("fairy-detail-panel");
+        fairyDetailCloseButton = root.Q<Button>("fairy-detail-close-button");
+        fairyDetailNameLabel = root.Q<Label>("fairy-detail-name");
+        fairyDetailImage = root.Q<VisualElement>("fairy-detail-image");
+        fairyDetailFavoriteValueLabel = root.Q<Label>("fairy-detail-favorite-value");
+        fairyDetailFlavorValueLabel = root.Q<Label>("fairy-detail-flavor-value");
         LoadUndiscoveredFairyImageTexture();
 
         if (fairyCollectionOverlay == null ||
@@ -201,13 +240,22 @@ public sealed class HubScreenBinder : MonoBehaviour
             fairyCollectionScrollView == null ||
             fairyCollectionEmptyLabel == null ||
             fairyCollectionCountLabel == null ||
-            fairyCollectionCloseButton == null)
+            fairyCollectionCloseButton == null ||
+            fairyDetailOverlay == null ||
+            fairyDetailBackdrop == null ||
+            fairyDetailPanel == null ||
+            fairyDetailCloseButton == null ||
+            fairyDetailNameLabel == null ||
+            fairyDetailImage == null ||
+            fairyDetailFavoriteValueLabel == null ||
+            fairyDetailFlavorValueLabel == null)
         {
-            Debug.LogError("妖精コレクション UI の初期化に失敗しました");
+            Debug.LogError("妖精詳細 UI を含むコレクション UI の初期化に失敗しました");
             return;
         }
 
         fairyCollectionOverlay.style.display = DisplayStyle.None;
+        fairyDetailOverlay.style.display = DisplayStyle.None;
     }
 
     private void LoadUndiscoveredFairyImageTexture()
@@ -622,6 +670,7 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         CloseStickerShop();
+        CloseFairyDetail();
         RefreshFairyCollection();
         fairyCollectionOverlay.style.display = DisplayStyle.Flex;
     }
@@ -633,7 +682,56 @@ public sealed class HubScreenBinder : MonoBehaviour
             return;
         }
 
+        CloseFairyDetail();
         fairyCollectionOverlay.style.display = DisplayStyle.None;
+    }
+
+    private void OpenFairyDetail(FairyDefinition fairy)
+    {
+        if (fairy == null || fairyDetailOverlay == null)
+        {
+            return;
+        }
+
+        ApplyFairyDetail(fairy);
+        fairyDetailOverlay.style.display = DisplayStyle.Flex;
+    }
+
+    private void ApplyFairyDetail(FairyDefinition fairy)
+    {
+        if (fairyDetailNameLabel == null ||
+            fairyDetailImage == null ||
+            fairyDetailFavoriteValueLabel == null ||
+            fairyDetailFlavorValueLabel == null)
+        {
+            return;
+        }
+
+        fairyDetailNameLabel.text = string.IsNullOrWhiteSpace(fairy.DisplayName)
+            ? "名称未設定"
+            : fairy.DisplayName;
+
+        fairyDetailFavoriteValueLabel.text = FairyDetailFavoriteText;
+        fairyDetailFlavorValueLabel.text = FairyDetailFlavorText;
+
+        if (fairy.Icon != null)
+        {
+            fairyDetailImage.style.backgroundImage = new StyleBackground(fairy.Icon.texture);
+        }
+        else
+        {
+            fairyDetailImage.style.backgroundImage = StyleKeyword.None;
+        }
+    }
+
+    private void CloseFairyDetail()
+    {
+        if (fairyDetailOverlay == null)
+        {
+            return;
+        }
+
+        fairyDetailOverlay.style.display = DisplayStyle.None;
     }
 
     // 妖精コレクション画面の更新
@@ -669,8 +767,18 @@ public sealed class HubScreenBinder : MonoBehaviour
     // 妖精コレクションカードの作成
     private VisualElement CreateFairyCard(FairyDefinition fairy, bool isDiscovered)
     {
-        VisualElement card = new();
+        Button card = new();
         card.AddToClassList("fairy-card");
+        card.focusable = false;
+
+        if (isDiscovered && fairy != null)
+        {
+            card.clicked += () => OpenFairyDetail(fairy);
+        }
+        else
+        {
+            card.AddToClassList("fairy-card--locked");
+        }
 
         Label nameLabel = new();
         nameLabel.AddToClassList("fairy-card__name");
@@ -700,7 +808,7 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         Label detailValue = new();
         detailValue.AddToClassList("fairy-card__detail-value");
-        detailValue.text = "クール/ワイルド";
+        detailValue.text = FairyDetailFavoriteText;
 
         imageFrame.Add(image);
         card.Add(nameLabel);
