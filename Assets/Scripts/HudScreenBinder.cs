@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 public sealed class HubScreenBinder : MonoBehaviour
 {
     private const string FairyDetailFavoriteText = "クール/ワイルド";
-    private const string FairyDetailFlavorText = "ホゲホゲ。フガフガ あいうえお";
+    private const string FairyDetailFlavorText = "ホゲホゲ。\nフガフガ あいうえお";
 
     [SerializeField] private UIDocument uiDocument;
     [SerializeField] private OwnedStickerInventorySource inventorySource;

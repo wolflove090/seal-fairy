@@ -26,7 +26,7 @@
                 <ui:Label name="fairy-detail-favorite-label" text="好きなシール：" picking-mode="Ignore" />
                 <ui:Label name="fairy-detail-favorite-value" text="クール/ワイルド" picking-mode="Ignore" />
                 <ui:Label name="fairy-detail-flavor-label" text="フレーバー：" picking-mode="Ignore" />
-                <ui:Label name="fairy-detail-flavor-value" text="ホゲホゲ。フガフガ あいうえお" picking-mode="Ignore" />
+                <ui:Label name="fairy-detail-flavor-value" text="ホゲホゲ。&#10;フガフガ あいうえお" picking-mode="Ignore" />
             </ui:VisualElement>
         </ui:VisualElement>
     </ui:VisualElement>
