@@ -27,6 +27,26 @@ public static class FairyCollectionService
         return state.Contains(fairyId);
     }
 
+    public static int RegisterDiscoveries(IReadOnlyList<FairyDefinition> fairies)
+    {
+        if(fairies == null)
+            return 0;
+
+        int registeredCount = 0;
+        foreach(FairyDefinition fairy in fairies)
+        {
+            if(fairy == null || string.IsNullOrWhiteSpace(fairy.Id))
+                continue;
+
+            if(state.TryAdd(fairy.Id))
+            {
+                registeredCount++;
+            }
+        }
+
+        return registeredCount;
+    }
+
     public static int GetDiscoveredCount(IReadOnlyList<FairyDefinition> fairies)
     {
         if(fairies == null)
