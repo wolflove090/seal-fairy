@@ -4,8 +4,7 @@ using UnityEngine.UIElements;
 
 public sealed class HubScreenBinder : MonoBehaviour
 {
-    private const string FairyDetailFavoriteText = "クール/ワイルド";
-    private const string FairyDetailFlavorText = "ホゲホゲ。\nフガフガ あいうえお";
+    private const string FairyDetailFallbackText = "*****";
 
     [SerializeField] private UIDocument uiDocument;
     [SerializeField] private OwnedStickerInventorySource inventorySource;
@@ -711,8 +710,8 @@ public sealed class HubScreenBinder : MonoBehaviour
             ? "名称未設定"
             : fairy.DisplayName;
 
-        fairyDetailFavoriteValueLabel.text = FairyDetailFavoriteText;
-        fairyDetailFlavorValueLabel.text = FairyDetailFlavorText;
+        fairyDetailFavoriteValueLabel.text = ResolveFavoriteStickerText(fairy);
+        fairyDetailFlavorValueLabel.text = ResolveFlavorText(fairy);
 
         if (fairy.Icon != null)
         {
@@ -732,6 +731,26 @@ public sealed class HubScreenBinder : MonoBehaviour
         }
 
         fairyDetailOverlay.style.display = DisplayStyle.None;
+    }
+
+    private static string ResolveFavoriteStickerText(FairyDefinition fairy)
+    {
+        if (fairy == null || string.IsNullOrWhiteSpace(fairy.FavoriteStickerText))
+        {
+            return FairyDetailFallbackText;
+        }
+
+        return fairy.FavoriteStickerText;
+    }
+
+    private static string ResolveFlavorText(FairyDefinition fairy)
+    {
+        if (fairy == null || string.IsNullOrWhiteSpace(fairy.FlavorText))
+        {
+            return FairyDetailFallbackText;
+        }
+
+        return fairy.FlavorText;
     }
 
     // 妖精コレクション画面の更新
@@ -808,7 +827,7 @@ public sealed class HubScreenBinder : MonoBehaviour
 
         Label detailValue = new();
         detailValue.AddToClassList("fairy-card__detail-value");
-        detailValue.text = FairyDetailFavoriteText;
+        detailValue.text = ResolveFavoriteStickerText(fairy);
 
         imageFrame.Add(image);
         card.Add(nameLabel);

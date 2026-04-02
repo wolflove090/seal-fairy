@@ -4,7 +4,7 @@
         <ui:Button name="fairy-collection-backdrop" />
         <ui:VisualElement name="fairy-collection-panel">
             <ui:VisualElement name="fairy-collection-header">
-                <ui:Label name="fairy-collection-title" text="妖精コレクション" />
+                <ui:Label name="fairy-collection-title" text="妖精コレクションが好き" />
                 <ui:Button name="fairy-collection-close-button" />
             </ui:VisualElement>
             <ui:VisualElement name="fairy-collection-content-frame">
