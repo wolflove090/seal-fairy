@@ -3,17 +3,27 @@ using UnityEngine;
 [System.Serializable]
 public sealed class FairyDefinition
 {
-    [SerializeField] private string id;
-    [SerializeField] private string displayName;
-    [SerializeField, Min(0)] private int weight = 1;
-    [SerializeField] private Sprite icon;
-    [SerializeField] private string favoriteStickerText;
-    [SerializeField, TextArea(3, 6)] private string flavorText;
+    public readonly string Id;
+    public readonly string DisplayName;
+    public readonly int Weight;
+    public readonly Sprite Icon;
+    public readonly string FavoriteStickerText;
+    public readonly string FlavorText;
 
-    public string Id => id;
-    public string DisplayName => displayName;
-    public int Weight => weight;
-    public Sprite Icon => icon;
-    public string FavoriteStickerText => favoriteStickerText;
-    public string FlavorText => flavorText;
+    public FairyDefinition(
+        string id,
+        string displayName,
+        int weight,
+        Sprite icon,
+        string favoriteStickerText,
+        string flavorText)
+    {
+        Id = id;
+        DisplayName = displayName;
+        Weight = weight;
+        Icon = icon;
+        FavoriteStickerText = favoriteStickerText;
+        FlavorText = flavorText;
+    }
+
 }

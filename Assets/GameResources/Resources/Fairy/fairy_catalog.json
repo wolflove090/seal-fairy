@@ -1,0 +1,28 @@
+{
+  "fairies": [
+    {
+      "id": "1",
+      "displayName": "バラちゃん",
+      "weight": 1,
+      "iconResourcePath": "Fairy/13",
+      "favoriteStickerText": "自然やお花のシールが好きだぜ！",
+      "flavorText": "なんか常にカッコつけている。\n皆からはほんのり嫌われている。"
+    },
+    {
+      "id": "2",
+      "displayName": "ウルフちゃん",
+      "weight": 1,
+      "iconResourcePath": "Fairy/05",
+      "favoriteStickerText": "かっこよくて、もふもふなシールがあるといいなぁ",
+      "flavorText": "実はとっても寂しがりや。\n怖がられると思っているから、遠くから見つめているよ。"
+    },
+    {
+      "id": "3",
+      "displayName": "もっさん",
+      "weight": 1,
+      "iconResourcePath": "Fairy/07",
+      "favoriteStickerText": "お仲間の恐竜さん…。好き。",
+      "flavorText": "とっても怠け者。\n口を大きくあけて、ごはんが入るのを待ってるよ。"
+    }
+  ]
+}

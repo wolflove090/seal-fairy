@@ -1,12 +1,43 @@
-# 妖精ごとの好きなシールとフレーバー個別設定 ToDo
+# 妖精データJSONロード ToDo
 
-1. [Documentation/要件書/妖精ごとの好きなシールとフレーバー個別設定要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/妖精ごとの好きなシールとフレーバー個別設定要件書.md) を再確認し、好きなシールは自由入力文字列、未設定時は `*****` フォールバックであることを確認する。
-2. [Assets/Scripts/Fairy/FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs) に、`favoriteStickerText` と `flavorText` の serialized field、および公開プロパティを追加する。
-3. [Assets/Scripts/Fairy/FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs) の `flavorText` に `TextArea` 属性を付け、Inspector で複数行入力しやすくする。
-4. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の固定文言定数を、個別設定未入力時のフォールバック定数 `*****` へ置き換える。
-5. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) に、`ResolveFavoriteStickerText(FairyDefinition fairy)` と `ResolveFlavorText(FairyDefinition fairy)` を追加する。
-6. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `ApplyFairyDetail()` を更新し、好きなシールとフレーバーを `FairyDefinition` から表示するよう変更する。
-7. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) の `CreateFairyCard()` を更新し、発見済み妖精カードの「好きなシール」欄に個別設定値を表示する。
-8. [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) で、未発見妖精カードでは個別設定値を参照しないことを確認する。
-9. [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を Unity Editor で開き、`FairyCatalogSource` の各妖精に好きなシールとフレーバーを入力する。
-10. Unity 上で、妖精ごとの差分表示、未設定時の `*****`、未発見時の伏せ表示、既存開閉導線に回帰がないことを確認する。
+## フェーズ1: データ配置の準備
+- [ ] `Assets/GameResources/Resources/Fairy/` ディレクトリを作成する。
+- [ ] [Assets/GameResources/Fairy/05.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/05.png) を `Resources` 配下へ移設または複製する。
+- [ ] [Assets/GameResources/Fairy/07.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/07.png) を `Resources` 配下へ移設または複製する。
+- [ ] [Assets/GameResources/Fairy/13.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/13.png) を `Resources` 配下へ移設または複製する。
+- [ ] `Resources.Load<Sprite>()` で読めるパス命名を統一する。
+
+## フェーズ2: JSON マスタの作成
+- [ ] `Assets/GameResources/Resources/Fairy/fairy_catalog.json` を追加する。
+- [ ] [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity#L2806) にある `バラちゃん` の `id`、`displayName`、`weight`、`favoriteStickerText`、`flavorText` を JSON へ転記する。
+- [ ] [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity#L2806) にある `ウルフちゃん` の `id`、`displayName`、`weight`、`favoriteStickerText`、`flavorText` を JSON へ転記する。
+- [ ] [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity#L2806) にある `もっさん` の `id`、`displayName`、`weight`、`favoriteStickerText`、`flavorText` を JSON へ転記する。
+- [ ] 各レコードへ `iconResourcePath` を設定する。
+
+## フェーズ3: ローダーとリポジトリの追加
+- [ ] `FairyCatalogDto` と `FairyRecordDto` を追加する。
+- [ ] `FairyCatalogLoader` を追加し、`Resources.Load<TextAsset>()` と `JsonUtility.FromJson()` で JSON を読み込めるようにする。
+- [ ] ローダーにレコード検証処理を追加する。
+- [ ] 不正レコードスキップ時に、対象レコードが分かるログを出す。
+- [ ] JSON 欠落または解析失敗時に `Debug.LogError` を出す。
+- [ ] `FairyCatalogRepository` を追加し、起動時に 1 回だけロードする。
+
+## フェーズ4: 既存参照経路の置換
+- [ ] [Assets/Scripts/Fairy/FairyCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogSource.cs) から Inspector 配列を除去する。
+- [ ] [Assets/Scripts/Fairy/FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs) を JSON DTO から生成できる形へ変更する。
+- [ ] [Assets/Scripts/Sticker/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) が追加修正なし、または最小修正で継続利用できることを確認する。
+- [ ] [Assets/Scripts/HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) が追加修正なし、または最小修正で継続利用できることを確認する。
+
+## フェーズ5: シーン移行
+- [ ] [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) から `FairyCatalogSource.fairies` の旧直列化データを除去する。
+- [ ] シーン上の `FairyCatalogSource` コンポーネント参照が維持されていることを確認する。
+- [ ] Play Mode 再実行時にキャッシュが初期化されることを確認する。
+
+## フェーズ6: 動作確認
+- [ ] 起動直後に妖精一覧が 3 件ロードされることを確認する。
+- [ ] シール配置時の妖精抽選が動作することを確認する。
+- [ ] 妖精コレクション一覧に JSON 由来の表示名と画像が出ることを確認する。
+- [ ] 妖精詳細に JSON 由来の好きなシールとフレーバーが出ることを確認する。
+- [ ] JSON 欠落時に `Debug.LogError` が出て安全継続することを確認する。
+- [ ] 不正レコードのみスキップされ、他レコードは利用可能なことを確認する。
+- [ ] `iconResourcePath` 不正時に画像だけ null 扱いとなり致命的エラーにならないことを確認する。
