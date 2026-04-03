@@ -23,7 +23,7 @@ public sealed class OwnedStickerInventorySource : MonoBehaviour
         }
     }
 
-    [SerializeField] private List<OwnedStickerEntry> ownedStickers = new();
+    private List<OwnedStickerEntry> ownedStickers = new();
 
     public event Action OwnedStickersChanged;
 
