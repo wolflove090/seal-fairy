@@ -3,26 +3,34 @@
     {
       "id": "1",
       "displayName": "バラちゃん",
-      "weight": 1,
       "iconResourcePath": "Fairy/13",
       "favoriteStickerText": "自然やお花のシールが好きだぜ！",
-      "flavorText": "なんか常にカッコつけている。\n皆からはほんのり嫌われている。"
+      "flavorText": "なんか常にカッコつけている。\n皆からはほんのり嫌われている。",
+      "preferredStickers": [
+        { "stickerId": "pranter", "weight": 7 },
+        { "stickerId": "jouro", "weight": 3 }
+      ]
     },
     {
       "id": "2",
       "displayName": "ウルフちゃん",
-      "weight": 1,
       "iconResourcePath": "Fairy/05",
       "favoriteStickerText": "かっこよくて、もふもふなシールがあるといいなぁ",
-      "flavorText": "実はとっても寂しがりや。\n怖がられると思っているから、遠くから見つめているよ。"
+      "flavorText": "実はとっても寂しがりや。\n怖がられると思っているから、遠くから見つめているよ。",
+      "preferredStickers": [
+        { "stickerId": "jouro", "weight": 10 }
+      ]
     },
     {
       "id": "3",
       "displayName": "もっさん",
-      "weight": 1,
       "iconResourcePath": "Fairy/07",
       "favoriteStickerText": "お仲間の恐竜さん…。好き。",
-      "flavorText": "とっても怠け者。\n口を大きくあけて、ごはんが入るのを待ってるよ。"
+      "flavorText": "とっても怠け者。\n口を大きくあけて、ごはんが入るのを待ってるよ。",
+      "preferredStickers": [
+        { "stickerId": "pink-diamond", "weight": 8 },
+        { "stickerId": "juery-necklace", "weight": 2 }
+      ]
     }
   ]
 }

@@ -229,6 +229,7 @@ public sealed class TapStickerPlacer : MonoBehaviour
         return false;
     }
 
+    // ステッカーの配置
     private void SpawnSticker(Vector3 worldPoint)
     {
         PeelSticker3D sticker = Instantiate(templateSticker);
@@ -239,19 +240,34 @@ public sealed class TapStickerPlacer : MonoBehaviour
         sticker.PeelAmount = 0f;
         sticker.SetTapPeelEnabled(false);
 
-        bool shouldAssignFairy = UnityEngine.Random.value < 0.5f;
-        FairyDefinition selectedFairy = shouldAssignFairy
-            ? FairyWeightedRandomSelector.Select(fairyCatalogSource.GetFairies())
-            : null;
-
-        StickerFairyAssignment assignment = selectedFairy != null ? new StickerFairyAssignment(selectedFairy) : null;
-
+        StickerFairyAssignment assignment = ResolveFairyAssignment(selectionState?.SelectedSticker);
         StickerRuntimeRegistry.Register(sticker, assignment);
 
         if (assignment != null && assignment.HasFairy)
         {
             AttachFairyEffect(sticker);
         }
+    }
+
+    // 妖精を配置するか
+    private StickerFairyAssignment ResolveFairyAssignment(StickerDefinition selectedSticker)
+    {
+        if (selectedSticker == null || string.IsNullOrWhiteSpace(selectedSticker.Id))
+        {
+            return null;
+        }
+
+        // 50%の確率で妖精を配置
+        if (UnityEngine.Random.value >= 0.5f)
+        {
+            return null;
+        }
+
+        FairyDefinition fairy = StickerFairySelector.Select(
+            selectedSticker.Id,
+            fairyCatalogSource != null ? fairyCatalogSource.GetFairies() : null);
+
+        return fairy != null ? new StickerFairyAssignment(fairy) : null;
     }
 
     private Camera GetActiveCamera()

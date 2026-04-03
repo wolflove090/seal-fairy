@@ -1,178 +1,175 @@
-# 妖精データJSONロード 実装計画
+# 妖精ごとのシール排出テーブル 実装計画
 
 ## 実装方針
-- 現在の妖精マスタは [FairyCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogSource.cs) の Inspector 配列に保持され、利用側の [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) と [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs) が `GetFairies()` を参照している。利用側 API を維持したまま、データ供給元のみ JSON 起動時ロードへ置き換える。
-- `FairyCatalogSource` 自体に JSON 解析責務を寄せず、別ローダー/リポジトリを追加して責務を分離する。`FairyCatalogSource` はロード済み一覧の提供だけを担う薄いアダプタにする。
-- JSON と画像はどちらも `Resources` 配下に配置し、妖精定義 JSON には `Resources.Load<Sprite>()` に渡す `iconResourcePath` を持たせる。
-- 現在の妖精画像は [Assets/GameResources/Fairy/05.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/05.png)、[Assets/GameResources/Fairy/07.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/07.png)、[Assets/GameResources/Fairy/13.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/13.png) にあり `Resources` 参照できないため、JSON 化に合わせて `Resources` 配下へ移設または複製する。
-- [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity#L2806) に直列化されている既存 3 件の妖精データ (`バラちゃん`、`ウルフちゃん`、`もっさん`) は、初期 JSON として転記し、シーンから手入力マスタを除去する。
+- 現在の妖精抽選は [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) から [FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs) を呼ぶ全体重み抽選であり、配置したシール種別を考慮していない。これを「ゲーム開始時に `StickerDefinition.Id` ごとの排出テーブルを構築し、配置時はそのキャッシュを使って抽選する」方式へ置き換える。
+- 妖精の好み情報は JSON マスタに保持し、`FairyDefinition` にランタイムモデルとして展開する。`StickerDefinition` 側には既存の `Id` があるため、新たなマスタを追加せず `stickerId + weight` の組み合わせを妖精定義側へ持たせる。
+- 既存の `FairyDefinition.Weight` は今回の仕様では不要なため削除する。既存 JSON、DTO、ローダー、ランタイムモデル、抽選ロジックから一貫して外す。
+- 配置時の乱数処理は 3 段階に分ける。
+  1. `50%` で妖精入りシールか判定する。
+  2. 妖精入りなら、対象シールの排出テーブルを使って重み付き一次抽選する。
+  3. 一次抽選が候補なし、または発見済み妖精当選で空振りした場合のみ、`50%` で未発見のその他妖精から等確率救済抽選する。
+- 抽選ロジックを `TapStickerPlacer` に直接埋め込まず、ゲーム開始時の排出テーブル構築と配置時の抽選責務を新規セレクタ/リポジトリへ分離する。`TapStickerPlacer` は「配置したシールを渡して妖精割り当て結果を受け取る」だけに留める。
 
 ## 変更対象ファイル一覧
-- [Assets/Scripts/Fairy/FairyCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogSource.cs)
-  - Inspector 配列を廃止し、ロード済み妖精一覧の取得窓口へ変更する。
 - [Assets/Scripts/Fairy/FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs)
-  - JSON DTO から組み立て可能なランタイム定義へ更新する。
-- `Assets/Scripts/Fairy/FairyCatalogLoader.cs`
-  - `Resources` から `TextAsset` を読み込み、JSON 解析と DTO 検証を行う新規ローダー。
-- `Assets/Scripts/Fairy/FairyCatalogRepository.cs`
-  - ロード済み `FairyDefinition` 一覧をキャッシュし、起動時初期化と参照を提供する新規リポジトリ。
-- `Assets/Scripts/Fairy/FairyCatalogDto.cs`
-  - `JsonUtility` 用のラッパー DTO と妖精1件分 DTO を定義する新規ファイル。
-- `Assets/GameResources/Resources/Fairy/fairy_catalog.json`
-  - 初期妖精マスタ JSON。
-- `Assets/GameResources/Resources/Fairy/05.png`
-- `Assets/GameResources/Resources/Fairy/07.png`
-- `Assets/GameResources/Resources/Fairy/13.png`
-  - `Resources.Load<Sprite>()` で解決できる配置へ移した妖精画像。
-- [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
-  - `FairyCatalogSource` の旧 `fairies` 直列化データを除去し、新構成に合わせる。
-- [Documentation/要件書/妖精データJSONロード要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/妖精データJSONロード要件書.md)
+  - `Weight` を削除し、好みシール一覧を保持できるランタイムモデルへ変更する。
+- [Assets/Scripts/Fairy/FairyCatalogDto.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogDto.cs)
+  - `weight` を廃止し、`preferredStickers` 配列 DTO を追加する。
+- [Assets/Scripts/Fairy/FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs)
+  - 新 DTO を検証し、`FairyDefinition` を好みシール込みで構築する。
+- [Assets/GameResources/Resources/Fairy/fairy_catalog.json](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Resources/Fairy/fairy_catalog.json)
+  - 各妖精に `preferredStickers` を定義し、旧 `weight` を削除する。
+- [Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs)
+  - 廃止または互換用途の整理対象。今回の抽選用途から外す。
+- `Assets/Scripts/Fairy/FairyStickerPreference.cs`
+  - 妖精 1 体が持つ `stickerId + weight` を表す新規ランタイムモデル。
+- `Assets/Scripts/Fairy/StickerFairySelector.cs`
+  - 対象シール ID に対応するキャッシュ済み排出テーブルを参照し、一次抽選と救済抽選で最終妖精を決定する新規クラス。
+- `Assets/Scripts/Fairy/StickerFairyTableRepository.cs`
+  - ゲーム開始時にシール別排出テーブルを構築・保持する新規リポジトリ。
+- [Assets/Scripts/Sticker/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs)
+  - 既存の単純抽選呼び出しを、新セレクタ経由の割り当てへ差し替える。
+- [Documentation/要件書/妖精ごとのシール排出テーブル要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/妖精ごとのシール排出テーブル要件書.md)
   - 実装判断の基準として参照する。
 
 ## データフロー / 処理フロー
-1. Unity 起動時に `FairyCatalogRepository.Initialize()` を実行する。
-2. `FairyCatalogLoader` が `Resources.Load<TextAsset>("Fairy/fairy_catalog")` で JSON を取得する。
-3. `JsonUtility.FromJson<FairyCatalogDto>()` で DTO を復元する。
-4. DTO の各レコードを検証し、`id` 欠落や `weight <= 0` などの不正レコードはログを出してスキップする。
-5. 有効レコードごとに `iconResourcePath` を使って `Resources.Load<Sprite>()` を実行し、`FairyDefinition` を組み立てる。
-6. 完成した `FairyDefinition` 一覧を `FairyCatalogRepository` にキャッシュする。
-7. `FairyCatalogSource.GetFairies()` はキャッシュ済み一覧を返す。
-8. [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs#L244) の抽選処理と [HudScreenBinder.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/HudScreenBinder.cs#L764) の一覧表示は、従来どおり `GetFairies()` を通じてロード済み妖精を参照する。
+1. 起動時に [FairyCatalogRepository.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogRepository.cs) が JSON から妖精一覧をロードする。
+2. [FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs) が各妖精レコードの `preferredStickers` を読み取り、`FairyStickerPreference` 一覧へ変換する。
+3. `StickerFairyTableRepository` が、全妖精の好み設定を走査し、`stickerId -> (fairy, weight)` の排出テーブルをシールごとに構築してキャッシュする。
+4. 配置時に [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs#L233) が、選択中の `StickerDefinition` を取得する。
+5. `TapStickerPlacer` は `50%` 判定で妖精入りでない場合、従来どおり妖精なしで [StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerRuntimeRegistry.cs) へ登録する。
+6. 妖精入りの場合、`StickerFairySelector` が対象シール ID の排出テーブルから一次抽選を行う。
+7. 一次抽選で未発見妖精が当たればそのまま返し、発見済み妖精当選または候補なしなら空振り扱いにする。
+8. 空振り時のみ、対象シールを好まない未発見妖精を救済候補として集め、`50%` で等確率抽選する。
+9. 最終的に返った妖精を `StickerFairyAssignment` に詰めて登録し、剥がし時は既存どおり割り当て済み結果だけを消費する。
 
 ## 詳細設計
 
-### 1. `FairyDefinition` の責務見直し
-- 現状の `FairyDefinition` は Inspector 用 serialized field のみを持つ POCO であり、JSON からの生成に向いた生成経路がない。
-- 実装では以下のいずれかに統一する。
-  - private field を constructor で初期化できる純粋なランタイムモデルへ変更する。
-  - もしくは factory メソッド `Create(...)` を追加する。
-- 利用側は `Id`、`DisplayName`、`Weight`、`Icon`、`FavoriteStickerText`、`FlavorText` の getter を継続利用できる形にする。
-- `favoriteStickerText` と `flavorText` は null 許容入力を受け取り、表示側の既存フォールバック処理と整合させる。
+### 1. 妖精の好みデータ構造
+- JSON の妖精 1 件は、既存の `id`、`displayName`、`iconResourcePath`、`favoriteStickerText`、`flavorText` に加えて `preferredStickers` 配列を持つ。
+- `preferredStickers` の 1 件は以下の最小構造とする。
+  - `stickerId`
+  - `weight`
+- ランタイムでは `FairyStickerPreference` を新規追加し、`StickerId` と `Weight` を不変値として保持する。
+- `FairyDefinition` は `IReadOnlyList<FairyStickerPreference>` を公開し、UI からは従来どおり表示名、画像、好きなシール文言、フレーバーだけを参照できるようにする。
+- 同一妖精に同一 `stickerId` が複数定義されていた場合は、ローダー段階で合算済みの 1 件へ正規化する。
 
-### 2. JSON DTO と loader
-- `JsonUtility` は配列直列化の都合でラッパー型が必要なため、以下の DTO を追加する。
-  - `FairyCatalogDto { FairyRecordDto[] fairies; }`
-  - `FairyRecordDto { string id; string displayName; int weight; string iconResourcePath; string favoriteStickerText; string flavorText; }`
-- `FairyCatalogLoader` は以下を責務に持つ。
-  - JSON `TextAsset` の取得
-  - JSON 解析
-  - DTO 検証
-  - `Sprite` 解決
-  - `FairyDefinition` への変換
-- ローダー内部で `Debug.LogError` / `Debug.LogWarning` を使い、次のログ粒度を揃える。
-  - JSON ファイル欠落
-  - JSON 解析失敗
-  - 個別レコードの必須値不足
-  - `iconResourcePath` 解決失敗
+### 2. DTO / ローダーの再設計
+- `FairyRecordDto.weight` は削除する。
+- 代わりに以下の DTO を追加する。
+  - `PreferredStickerDto { string stickerId; int weight; }`
+- `FairyCatalogLoader` は次の検証を担う。
+  - `id` が空でないこと
+  - `preferredStickers` の各要素が null でないこと
+  - `stickerId` が空でないこと
+  - `weight > 0` であること
+- 妥当でない好み設定はその要素だけをスキップし、妖精レコード全体は可能な限り生かす。
+- 好み設定を 1 件も持たない妖精もロードは許可する。該当妖精は通常抽選では出ず、救済抽選候補にのみ入る。
 
-### 3. Repository と起動時初期化
-- `FairyCatalogRepository` は static 管理とし、起動時に 1 度だけロードして `IReadOnlyList<FairyDefinition>` を保持する。
-- 初期化は `[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]` を優先し、シーン内 `MonoBehaviour` の `Awake` より前にロード完了を狙う。
-- `SubsystemRegistration` でキャッシュ初期化を入れ、Play Mode 再実行時の状態汚染を防ぐ。
-- `FairyCatalogSource` は `GetFairies()` で repository を返すだけに簡略化する。必要であれば Inspector 参照削除後もコンポーネント自体は残し、シーン参照互換を保つ。
+### 3. 排出テーブルリポジトリ
+- `StickerFairyTableRepository` は static 管理とし、妖精カタログロード後にシール別排出テーブルを 1 度だけ構築する。
+- テーブルは `Dictionary<string, List<StickerFairyTableEntry>>` のような形で保持し、各エントリは `FairyDefinition` と重みを持つ。
+- 同一 `stickerId` に対して複数妖精の重みを蓄積し、シール単位の総重み計算を容易にする。
+- `SubsystemRegistration` でキャッシュをリセットし、Play Mode 再実行時の状態汚染を防ぐ。
 
-### 4. `Resources` 配置
-- JSON は `Assets/GameResources/Resources/Fairy/fairy_catalog.json` に配置する。
-- 画像は `Assets/GameResources/Resources/Fairy/` 配下へ置き、JSON の `iconResourcePath` は拡張子抜きの `Fairy/13` 形式で記述する。
-- 現在 UI で未発見妖精画像に使っている `transparent` は [Assets/GameResources/Texture/Resources/transparent.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Texture/Resources/transparent.png) から読めているため、同じ `Resources` ルールに寄せる。
+### 4. 抽選セレクタ
+- `StickerFairySelector` は static class か軽量 service とし、少なくとも次の責務を持つ。
+  - 対象シールのキャッシュ済み排出テーブル取得
+  - 重み付き乱数抽選
+  - 発見済み当選時の空振り判定
+  - 救済候補の構築
+  - `50%` 救済抽選
+- 一次抽選では発見済み妖精も除外せず、排出テーブル全体を使って抽選する。
+- 一次抽選で当選した妖精が発見済みなら `FairyCollectionService.IsDiscovered(fairy.Id)` により空振り扱いにする。
+- 救済候補は「対象シールを好まない未発見妖精」とする。
+- 乱数レンジは要件書どおり `1..totalWeight` を意識した実装にする。Unity の `Random.Range(int, int)` を使う場合は `0..totalWeight-1` との対応をコメントで明示する。
 
-### 5. `Main.unity` から JSON への移行
-- 現在のシーン直列化値を JSON へ転記する。
-  - `id: 1`, `displayName: バラちゃん`, `icon: 13.png`
-  - `id: 2`, `displayName: ウルフちゃん`, `icon: 05.png`
-  - `id: 3`, `displayName: もっさん`, `icon: 07.png`
-- 転記対象には既存の `weight`、`favoriteStickerText`、`flavorText` も含める。
-- 転記後、`Main.unity` 側の `fairies` 配列は削除し、シーンデータを二重管理しない。
+### 5. `TapStickerPlacer` の責務整理
+- 現状の `SpawnSticker()` 内には「シール生成」「50% 判定」「妖精抽選」「演出付与」が混在している。
+- 実装では、妖精割り当て部分を `ResolveFairyAssignment(StickerDefinition selectedSticker)` のような private メソッドへ切り出し、その中で `StickerFairySelector` を呼ぶ。
+- `selectedSticker` が null、`selectedSticker.Id` が空、`fairyCatalogSource` が未設定などの異常時は、妖精なしで安全継続する。
+- 妖精が選ばれたときだけ既存の `AttachFairyEffect()` を呼ぶ。
+
+### 6. 既存 `Weight` の整理
+- `FairyDefinition.Weight` は今回の排出仕様では使わないため、モデル・DTO・JSON から削除する。
+- [FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs) は参照箇所が [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs#L244) のみであるため、差し替え後に不要ファイルとして削除候補にする。
+- 既存コードで `Weight` 参照が残っていないことを `rg "Weight"` で確認する前提で進める。
 
 ## リスクと対策
-- `Resources` 非配置のまま画像パスだけ JSON 化すると `Sprite` が解決できない。
-  - 対策: 実装タスクに画像移設を含め、JSON の `iconResourcePath` と 1 対 1 に対応づける。
-- `RuntimeInitializeOnLoadMethod` の順序次第で `TapStickerPlacer` や `HudScreenBinder` より初期化が遅れる可能性がある。
-  - 対策: `BeforeSceneLoad` を使い、さらに repository 側で未初期化時の遅延初期化を許容する。
-- 不正 JSON で全件空になると妖精発見導線が見えづらくなる。
-  - 対策: ロード失敗時は明確な `Debug.LogError` を出し、個別レコード不正はスキップ対象を識別できるログを残す。
-- `FairyDefinition` の生成方法変更で既存コードがコンパイルエラーになる可能性がある。
-  - 対策: getter API は維持し、利用側変更を `FairyCatalogSource` 周辺に局所化する。
-- シーン直列化データと JSON が並存すると、どちらが正か不明になる。
-  - 対策: 移行完了時に `Main.unity` から旧妖精配列を除去する。
+- JSON 構造変更により既存 `fairy_catalog.json` がローダー非互換になる。
+  - 対策: DTO と JSON を同時更新し、`weight` 依存の検証を削除する。
+- 妖精が好み設定を持たない場合、通常抽選で一切出なくなる。
+  - 対策: 要件どおり救済抽選候補へ入る挙動を明文化し、ローダーでレコード自体は生かす。
+- 発見済み妖精を一次抽選に含めるため、未発見妖精の体感排出率が下がる。
+  - 対策: これは仕様として受け入れ、空振り時だけ救済抽選を入れて偏りを緩和する。
+- 同一妖精の同一シール重複設定を放置すると、抽選レンジとデータ表示が一致しなくなる。
+  - 対策: ローダーで `stickerId` 単位に合算して正規化する。
+- `TapStickerPlacer` にロジックを足し込みすぎると配置責務と抽選責務が再び混ざる。
+  - 対策: セレクタクラスを追加し、`TapStickerPlacer` では入力とシール生成に責務を限定する。
+- 救済抽選の発火条件を「外れた時」ではなく「候補なし時」にしないと、要件との差異が出る。
+  - 対策: 一次抽選が存在する場合は必ず誰かが当たる設計であり、救済抽選は候補なし時のみに限定する。
 
 ## 検証方針
-- 手動確認1: 起動直後に `FairyCatalogSource.GetFairies()` が 3 件返すことを確認する。
-- 手動確認2: シール配置時の妖精抽選が従来どおり動き、発見ログに `id` / `displayName` の整合があることを確認する。
-- 手動確認3: 妖精コレクション一覧と詳細画面で、JSON の表示名・画像・好きなシール・フレーバーが表示されることを確認する。
-- 手動確認4: JSON の 1 レコードだけ `id` や `weight` を壊し、そのレコードのみスキップされログに対象が出ることを確認する。
-- 手動確認5: JSON ファイル名または配置を壊し、`Debug.LogError` が出たうえでゲームが停止せず継続することを確認する。
-- 手動確認6: `iconResourcePath` を壊した妖精で、画像だけ null になっても一覧・詳細・抽選が致命的エラーにならないことを確認する。
+- 手動確認1: ゲーム開始時にシール別排出テーブルが構築されることをログまたはデバッガで確認する。
+- 手動確認2: 例としてジョウロに `A=7`, `B=4` を設定した場合、一次抽選総重みが 11 として扱われることを確認する。
+- 手動確認3: 妖精Aを発見済みにした状態でジョウロを置いたとき、A のレンジに当たると空振りになることを確認する。
+- 手動確認4: 一次抽選候補なし、または発見済み妖精当選による空振り時だけ、救済抽選が `50%` で発火することを確認する。
+- 手動確認5: 救済抽選では、対象シールを好まない未発見妖精から等確率で選ばれることを確認する。
+- 手動確認6: 妖精が割り当てられなかったシールでも、配置と剥がしが正常に継続することを確認する。
+- 手動確認7: めくり時に再抽選が起きず、配置時に確定した妖精だけが消費されることを確認する。
 
 ## コードスニペット
 ```csharp
+[System.Serializable]
+public sealed class PreferredStickerDto
+{
+    public string stickerId;
+    public int weight;
+}
+
 [System.Serializable]
 public sealed class FairyRecordDto
 {
     public string id;
     public string displayName;
-    public int weight;
     public string iconResourcePath;
     public string favoriteStickerText;
     public string flavorText;
-}
-
-[System.Serializable]
-public sealed class FairyCatalogDto
-{
-    public FairyRecordDto[] fairies;
+    public PreferredStickerDto[] preferredStickers;
 }
 ```
 
 ```csharp
-public static class FairyCatalogRepository
+public sealed class FairyStickerPreference
 {
-    private static readonly List<FairyDefinition> fairies = new();
-    private static bool initialized;
+    public string StickerId { get; }
+    public int Weight { get; }
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void Reset()
+    public FairyStickerPreference(string stickerId, int weight)
     {
-        fairies.Clear();
-        initialized = false;
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void InitializeOnLoad()
-    {
-        Initialize();
-    }
-
-    public static IReadOnlyList<FairyDefinition> GetFairies()
-    {
-        if (!initialized)
-        {
-            Initialize();
-        }
-
-        return fairies;
-    }
-
-    public static void Initialize()
-    {
-        if (initialized)
-        {
-            return;
-        }
-
-        initialized = true;
-        fairies.Clear();
-        fairies.AddRange(FairyCatalogLoader.Load());
+        StickerId = stickerId;
+        Weight = weight;
     }
 }
 ```
 
 ```csharp
-public sealed class FairyCatalogSource : MonoBehaviour
+private StickerFairyAssignment ResolveFairyAssignment(StickerDefinition selectedSticker)
 {
-    public IReadOnlyList<FairyDefinition> GetFairies()
+    if (selectedSticker == null || string.IsNullOrWhiteSpace(selectedSticker.Id))
     {
-        return FairyCatalogRepository.GetFairies();
+        return null;
     }
+
+    if (UnityEngine.Random.value >= 0.5f)
+    {
+        return null;
+    }
+
+    FairyDefinition fairy = StickerFairySelector.Select(
+        selectedSticker.Id,
+        fairyCatalogSource.GetFairies());
+
+    return fairy != null ? new StickerFairyAssignment(fairy) : null;
 }
 ```

@@ -1,70 +1,85 @@
-# 妖精データJSONロード 作業手順書
+# 妖精ごとのシール排出テーブル 作業手順書
 
 ## 目的
-- 妖精マスタを `FairyCatalogSource` の Inspector 配列管理から JSON 管理へ切り替える。
-- ゲーム開始時に妖精 JSON を読み込み、既存の抽選処理と妖精コレクション UI がそのデータを参照するようにする。
-- 既存の `Main.unity` に入っている 3 件の妖精データを初期 JSON へ転記し、シーン側の二重管理を解消する。
+- 妖精ごとに「どのシールをどれだけ好むか」を設定できるようにする。
+- ゲーム開始時に、全妖精の好み設定からシール別排出テーブルを構築する。
+- 配置時は `50%` で妖精入りシールにし、一次抽選が空振りした場合だけ `50%` で救済抽選する。
+- めくり時は、配置時に決めた妖精だけを参照し、再抽選しない。
 
 ## 変更対象
 - [Assets/Scripts/Fairy/FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs)
-- [Assets/Scripts/Fairy/FairyCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogSource.cs)
-- `Assets/Scripts/Fairy/FairyCatalogDto.cs`
-- `Assets/Scripts/Fairy/FairyCatalogLoader.cs`
-- `Assets/Scripts/Fairy/FairyCatalogRepository.cs`
-- `Assets/GameResources/Resources/Fairy/fairy_catalog.json`
-- [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
-- `Assets/GameResources/Resources/Fairy/05.png`
-- `Assets/GameResources/Resources/Fairy/07.png`
-- `Assets/GameResources/Resources/Fairy/13.png`
+- [Assets/Scripts/Fairy/FairyCatalogDto.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogDto.cs)
+- [Assets/Scripts/Fairy/FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs)
+- `Assets/Scripts/Fairy/FairyStickerPreference.cs`
+- `Assets/Scripts/Fairy/StickerFairySelector.cs`
+- `Assets/Scripts/Fairy/StickerFairyTableRepository.cs`
+- [Assets/Scripts/Sticker/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs)
+- [Assets/GameResources/Resources/Fairy/fairy_catalog.json](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Resources/Fairy/fairy_catalog.json)
+- [Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs)
 
-## 手順1: 妖精画像を `Resources` 配下へ移す
-1. `Assets/GameResources/Resources/Fairy/` を作成する。
-2. [Assets/GameResources/Fairy/05.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/05.png)、[Assets/GameResources/Fairy/07.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/07.png)、[Assets/GameResources/Fairy/13.png](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Fairy/13.png) を `Assets/GameResources/Resources/Fairy/` へ移すか複製する。
-3. JSON で使うパスは拡張子なしの `Fairy/05`、`Fairy/07`、`Fairy/13` に統一する。
-4. Sprite Import 設定が維持されていることを Unity Editor で確認する。
+## 手順1: 好みシールのランタイムモデルを追加する
+1. `Assets/Scripts/Fairy/FairyStickerPreference.cs` を新規作成する。
+2. 1 件の好み設定が `StickerId` と `Weight` を保持するだけの不変オブジェクトにする。
 
-## 手順2: JSON マスタを追加する
-1. `Assets/GameResources/Resources/Fairy/fairy_catalog.json` を作成する。
-2. [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity#L2806) にある 3 件の妖精データを転記する。
-3. `iconResourcePath` には `Resources.Load<Sprite>()` 用の相対パスを設定する。
-
-### JSON 例
-```json
+### 追加コード
+```csharp
+public sealed class FairyStickerPreference
 {
-  "fairies": [
+    public string StickerId { get; }
+    public int Weight { get; }
+
+    public FairyStickerPreference(string stickerId, int weight)
     {
-      "id": "1",
-      "displayName": "バラちゃん",
-      "weight": 1,
-      "iconResourcePath": "Fairy/13",
-      "favoriteStickerText": "自然やお花のシールが好きだぜ！",
-      "flavorText": "なんか常にカッコつけている。\n皆からはほんのり嫌われている。"
-    },
-    {
-      "id": "2",
-      "displayName": "ウルフちゃん",
-      "weight": 1,
-      "iconResourcePath": "Fairy/05",
-      "favoriteStickerText": "かっこよくて、もふもふなシールがあるといいなぁ",
-      "flavorText": "実はとっても寂しがりや。\n怖がられると思っているから、遠くから見つめているよ。"
-    },
-    {
-      "id": "3",
-      "displayName": "もっさん",
-      "weight": 1,
-      "iconResourcePath": "Fairy/07",
-      "favoriteStickerText": "お仲間の恐竜さん…。好き。",
-      "flavorText": "とっても怠け者。\n口を大きくあけて、ごはんが入るのを待ってるよ。"
+        StickerId = stickerId;
+        Weight = weight;
     }
-  ]
 }
 ```
 
-## 手順3: JSON DTO を追加する
-1. `Assets/Scripts/Fairy/FairyCatalogDto.cs` を作成する。
-2. `JsonUtility` で配列を扱うため、カタログ全体 DTO と 1 件 DTO を定義する。
+## 手順2: `FairyDefinition` を更新する
+1. [FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs) から `Weight` を削除する。
+2. `IReadOnlyList<FairyStickerPreference>` を保持するように変更する。
+3. constructor で好みシール一覧を受け取るようにする。
 
-### 追加コード
+### 変更コード
+```csharp
+using System.Collections.Generic;
+using UnityEngine;
+
+[System.Serializable]
+public sealed class FairyDefinition
+{
+    public string Id { get; }
+    public string DisplayName { get; }
+    public Sprite Icon { get; }
+    public string FavoriteStickerText { get; }
+    public string FlavorText { get; }
+    public IReadOnlyList<FairyStickerPreference> PreferredStickers { get; }
+
+    public FairyDefinition(
+        string id,
+        string displayName,
+        Sprite icon,
+        string favoriteStickerText,
+        string flavorText,
+        IReadOnlyList<FairyStickerPreference> preferredStickers)
+    {
+        Id = id;
+        DisplayName = displayName;
+        Icon = icon;
+        FavoriteStickerText = favoriteStickerText;
+        FlavorText = flavorText;
+        PreferredStickers = preferredStickers;
+    }
+}
+```
+
+## 手順3: DTO を更新する
+1. [FairyCatalogDto.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogDto.cs) の `weight` を削除する。
+2. `PreferredStickerDto` を追加する。
+3. `FairyRecordDto` に `preferredStickers` を持たせる。
+
+### 変更コード
 ```csharp
 [System.Serializable]
 public sealed class FairyCatalogDto
@@ -77,168 +92,127 @@ public sealed class FairyRecordDto
 {
     public string id;
     public string displayName;
-    public int weight;
     public string iconResourcePath;
     public string favoriteStickerText;
     public string flavorText;
+    public PreferredStickerDto[] preferredStickers;
 }
-```
 
-## 手順4: `FairyDefinition` をランタイム生成対応に変更する
-1. [FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs) を開く。
-2. Inspector 用 serialized field 中心の形から、constructor で値を受けるランタイムモデルへ置き換える。
-3. getter 名は既存利用側に合わせて維持する。
-
-### 変更コード
-```csharp
-using UnityEngine;
-
-public sealed class FairyDefinition
+[System.Serializable]
+public sealed class PreferredStickerDto
 {
-    public string Id { get; }
-    public string DisplayName { get; }
-    public int Weight { get; }
-    public Sprite Icon { get; }
-    public string FavoriteStickerText { get; }
-    public string FlavorText { get; }
-
-    public FairyDefinition(
-        string id,
-        string displayName,
-        int weight,
-        Sprite icon,
-        string favoriteStickerText,
-        string flavorText)
-    {
-        Id = id;
-        DisplayName = displayName;
-        Weight = weight;
-        Icon = icon;
-        FavoriteStickerText = favoriteStickerText;
-        FlavorText = flavorText;
-    }
+    public string stickerId;
+    public int weight;
 }
 ```
 
-## 手順5: ローダーを追加する
-1. `Assets/Scripts/Fairy/FairyCatalogLoader.cs` を作成する。
-2. `Resources.Load<TextAsset>("Fairy/fairy_catalog")` で JSON を読み込む。
-3. `JsonUtility.FromJson<FairyCatalogDto>()` で DTO へ変換する。
-4. 各レコードを検証し、不正レコードはスキップしつつ対象が分かるログを出す。
-5. `iconResourcePath` から `Resources.Load<Sprite>()` で画像を解決する。
+## 手順4: ローダーで好み設定を組み立てる
+1. [FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs) の `weight` 検証を削除する。
+2. `preferredStickers` を `FairyStickerPreference` 一覧へ変換する処理を追加する。
+3. 同一 `stickerId` が重複していたら、Dictionary で合算してから `FairyStickerPreference` 化する。
+4. `weight <= 0` や空 `stickerId` はその要素だけスキップする。
 
-### 追加コード
+### 変更イメージ
 ```csharp
-using System.Collections.Generic;
-using UnityEngine;
-
-public static class FairyCatalogLoader
+private static IReadOnlyList<FairyStickerPreference> BuildPreferences(FairyRecordDto record)
 {
-    private const string CatalogResourcePath = "Fairy/fairy_catalog";
-
-    public static List<FairyDefinition> Load()
+    Dictionary<string, int> merged = new();
+    if (record?.preferredStickers == null)
     {
-        TextAsset jsonAsset = Resources.Load<TextAsset>(CatalogResourcePath);
-        if (jsonAsset == null)
-        {
-            Debug.LogError($"Fairy catalog JSON not found. path={CatalogResourcePath}");
-            return new List<FairyDefinition>();
-        }
-
-        FairyCatalogDto catalog;
-        try
-        {
-            catalog = JsonUtility.FromJson<FairyCatalogDto>(jsonAsset.text);
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError($"Fairy catalog JSON parse failed. path={CatalogResourcePath} error={ex.Message}");
-            return new List<FairyDefinition>();
-        }
-
-        List<FairyDefinition> result = new();
-        if (catalog?.fairies == null)
-        {
-            Debug.LogError("Fairy catalog JSON has no fairies array.");
-            return result;
-        }
-
-        foreach (FairyRecordDto record in catalog.fairies)
-        {
-            if (!TryBuild(record, out FairyDefinition fairy))
-            {
-                continue;
-            }
-
-            result.Add(fairy);
-        }
-
-        return result;
+        return new List<FairyStickerPreference>();
     }
 
-    private static bool TryBuild(FairyRecordDto record, out FairyDefinition fairy)
+    foreach (PreferredStickerDto dto in record.preferredStickers)
     {
-        fairy = null;
-
-        if (record == null)
+        if (dto == null || string.IsNullOrWhiteSpace(dto.stickerId) || dto.weight <= 0)
         {
-            Debug.LogWarning("Fairy record skipped because record is null.");
-            return false;
+            continue;
         }
 
-        if (string.IsNullOrWhiteSpace(record.id))
+        if (merged.TryGetValue(dto.stickerId, out int current))
         {
-            Debug.LogWarning($"Fairy record skipped because id is empty. displayName={record.displayName}");
-            return false;
+            merged[dto.stickerId] = current + dto.weight;
         }
-
-        if (record.weight <= 0)
+        else
         {
-            Debug.LogWarning($"Fairy record skipped because weight is invalid. id={record.id} weight={record.weight}");
-            return false;
+            merged[dto.stickerId] = dto.weight;
         }
-
-        Sprite icon = null;
-        if (!string.IsNullOrWhiteSpace(record.iconResourcePath))
-        {
-            icon = Resources.Load<Sprite>(record.iconResourcePath);
-            if (icon == null)
-            {
-                Debug.LogWarning($"Fairy icon load failed. id={record.id} path={record.iconResourcePath}");
-            }
-        }
-
-        fairy = new FairyDefinition(
-            record.id,
-            record.displayName,
-            record.weight,
-            icon,
-            record.favoriteStickerText,
-            record.flavorText);
-        return true;
     }
+
+    List<FairyStickerPreference> result = new(merged.Count);
+    foreach ((string stickerId, int weight) in merged)
+    {
+        result.Add(new FairyStickerPreference(stickerId, weight));
+    }
+
+    return result;
 }
 ```
 
-## 手順6: リポジトリを追加する
-1. `Assets/Scripts/Fairy/FairyCatalogRepository.cs` を作成する。
-2. 起動時に 1 回ロードし、以後はキャッシュを返す。
-3. Play Mode 再実行時にキャッシュが残らないよう `SubsystemRegistration` でリセットする。
+### `TryBuild` の変更イメージ
+```csharp
+fairy = new FairyDefinition(
+    record.id,
+    record.displayName,
+    icon,
+    record.favoriteStickerText,
+    record.flavorText,
+    BuildPreferences(record));
+```
 
-### 追加コード
+## 手順5: JSON を更新する
+1. [fairy_catalog.json](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Resources/Fairy/fairy_catalog.json) の各妖精レコードから `weight` を削除する。
+2. `preferredStickers` を追加する。
+3. `stickerId` は実際の `StickerDefinition.Id` と一致させる。
+
+### JSON 例
+```json
+{
+  "fairies": [
+    {
+      "id": "1",
+      "displayName": "バラちゃん",
+      "iconResourcePath": "Fairy/13",
+      "favoriteStickerText": "自然やお花のシールが好きだぜ！",
+      "flavorText": "なんか常にカッコつけている。\n皆からはほんのり嫌われている。",
+      "preferredStickers": [
+        { "stickerId": "watering-can", "weight": 7 },
+        { "stickerId": "heart", "weight": 3 }
+      ]
+    },
+    {
+      "id": "2",
+      "displayName": "ウルフちゃん",
+      "iconResourcePath": "Fairy/05",
+      "favoriteStickerText": "かっこよくて、もふもふなシールがあるといいなぁ",
+      "flavorText": "実はとっても寂しがりや。\n怖がられると思っているから、遠くから見つめているよ。",
+      "preferredStickers": [
+        { "stickerId": "watering-can", "weight": 4 }
+      ]
+    }
+  ]
+}
+```
+
+## 手順6: シール別排出テーブルを事前構築する
+1. `Assets/Scripts/Fairy/StickerFairyTableRepository.cs` を新規作成する。
+2. ゲーム開始時に全妖精の `PreferredStickers` を走査し、`stickerId` ごとに `(fairy, weight)` を蓄積する。
+3. `GetTable(string stickerId)` で配置時に参照できるようにする。
+
+### 追加コード例
 ```csharp
 using System.Collections.Generic;
 using UnityEngine;
 
-public static class FairyCatalogRepository
+public static class StickerFairyTableRepository
 {
-    private static readonly List<FairyDefinition> fairies = new();
+    private static readonly Dictionary<string, List<(FairyDefinition fairy, int weight)>> tables = new();
     private static bool initialized;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void Reset()
     {
-        fairies.Clear();
+        tables.Clear();
         initialized = false;
     }
 
@@ -248,17 +222,19 @@ public static class FairyCatalogRepository
         Initialize();
     }
 
-    public static IReadOnlyList<FairyDefinition> GetFairies()
+    public static IReadOnlyList<(FairyDefinition fairy, int weight)> GetTable(string stickerId)
     {
         if (!initialized)
         {
             Initialize();
         }
 
-        return fairies;
+        return !string.IsNullOrWhiteSpace(stickerId) && tables.TryGetValue(stickerId, out List<(FairyDefinition fairy, int weight)> table)
+            ? table
+            : null;
     }
 
-    public static void Initialize()
+    private static void Initialize()
     {
         if (initialized)
         {
@@ -266,51 +242,191 @@ public static class FairyCatalogRepository
         }
 
         initialized = true;
-        fairies.Clear();
-        fairies.AddRange(FairyCatalogLoader.Load());
+        tables.Clear();
+
+        foreach (FairyDefinition fairy in FairyCatalogRepository.GetFairies())
+        {
+            if (fairy?.PreferredStickers == null)
+            {
+                continue;
+            }
+
+            foreach (FairyStickerPreference preference in fairy.PreferredStickers)
+            {
+                if (preference == null || string.IsNullOrWhiteSpace(preference.StickerId) || preference.Weight <= 0)
+                {
+                    continue;
+                }
+
+                if (!tables.TryGetValue(preference.StickerId, out List<(FairyDefinition fairy, int weight)> table))
+                {
+                    table = new List<(FairyDefinition fairy, int weight)>();
+                    tables[preference.StickerId] = table;
+                }
+
+                table.Add((fairy, preference.Weight));
+            }
+        }
     }
 }
 ```
 
-## 手順7: `FairyCatalogSource` を置き換える
-1. [FairyCatalogSource.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogSource.cs) を開く。
-2. Inspector 配列を削除する。
-3. repository の値を返す薄いアダプタへ置き換える。
+## 手順7: シール別抽選セレクタを追加する
+1. `Assets/Scripts/Fairy/StickerFairySelector.cs` を新規作成する。
+2. `Select(string stickerId, IReadOnlyList<FairyDefinition> fairies)` を用意する。
+3. `StickerFairyTableRepository.GetTable(stickerId)` から一次抽選テーブルを取得する。
+4. 一次抽選では発見済み妖精も含めて抽選し、当選妖精が発見済みなら空振り扱いにする。
+5. 一次抽選が候補なし、または発見済み当選で空振りなら、対象シールを好まない未発見妖精から救済候補を組み立てる。
+6. 救済候補があり、かつ `Random.value < 0.5f` のときだけ救済当選させる。
 
-### 変更コード
+### 追加コード例
 ```csharp
 using System.Collections.Generic;
 using UnityEngine;
 
-[DisallowMultipleComponent]
-public sealed class FairyCatalogSource : MonoBehaviour
+public static class StickerFairySelector
 {
-    public IReadOnlyList<FairyDefinition> GetFairies()
+    public static FairyDefinition Select(string stickerId, IReadOnlyList<FairyDefinition> fairies)
     {
-        return FairyCatalogRepository.GetFairies();
+        if (string.IsNullOrWhiteSpace(stickerId) || fairies == null || fairies.Count == 0)
+        {
+            return null;
+        }
+
+        List<FairyDefinition> fallback = new();
+        IReadOnlyList<(FairyDefinition fairy, int weight)> primary = StickerFairyTableRepository.GetTable(stickerId);
+
+        FairyDefinition selected = SelectWeighted(primary);
+        if (selected != null && !FairyCollectionService.IsDiscovered(selected.Id))
+        {
+            return selected;
+        }
+
+        foreach (FairyDefinition fairy in fairies)
+        {
+            if (fairy == null || string.IsNullOrWhiteSpace(fairy.Id) || FairyCollectionService.IsDiscovered(fairy.Id))
+            {
+                continue;
+            }
+
+            if (!HasPreferenceForSticker(fairy, stickerId))
+            {
+                fallback.Add(fairy);
+            }
+        }
+
+        if (fallback.Count == 0 || Random.value >= 0.5f)
+        {
+            return null;
+        }
+
+        int index = Random.Range(0, fallback.Count);
+        return fallback[index];
+    }
+
+    private static FairyDefinition SelectWeighted(IReadOnlyList<(FairyDefinition fairy, int weight)> candidates)
+    {
+        int totalWeight = 0;
+        foreach ((FairyDefinition _, int weight) in candidates)
+        {
+            totalWeight += weight;
+        }
+
+        if (totalWeight <= 0)
+        {
+            return null;
+        }
+
+        int roll = Random.Range(1, totalWeight + 1);
+        int accumulated = 0;
+        foreach ((FairyDefinition fairy, int weight) in candidates)
+        {
+            accumulated += weight;
+            if (roll <= accumulated)
+            {
+                return fairy;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool HasPreferenceForSticker(FairyDefinition fairy, string stickerId)
+    {
+        IReadOnlyList<FairyStickerPreference> preferences = fairy?.PreferredStickers;
+        if (preferences == null)
+        {
+            return false;
+        }
+
+        foreach (FairyStickerPreference preference in preferences)
+        {
+            if (preference != null && preference.StickerId == stickerId && preference.Weight > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 ```
 
-## 手順8: `Main.unity` の旧妖精配列を除去する
-1. Unity Editor で [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を開く。
-2. `FairyCatalogSource` を持つオブジェクトを選択する。
-3. `fairies` 配列が出ている場合は削除する。
-4. コンポーネント参照自体は残し、`HudScreenBinder` と `TapStickerPlacer` の参照切れを起こさない。
-5. シーン保存後、YAML 上で旧妖精データが残っていないことを確認する。
+## 手順8: `TapStickerPlacer` を差し替える
+1. [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) の `SpawnSticker()` から `FairyWeightedRandomSelector.Select()` 呼び出しを削除する。
+2. `selectedSticker.Id` を使って `StickerFairySelector.Select()` を呼ぶ。
+3. その前段で `50%` の妖精入り判定を残す。
 
-## 手順9: 動作確認
-1. Play Mode 起動直後に `FairyCatalogSource.GetFairies()` が 3 件返ることを確認する。
-2. シールを配置し、妖精抽選が従来どおり動くことを確認する。
-3. 妖精コレクション一覧で JSON 由来の画像と表示名が出ることを確認する。
-4. 妖精詳細で JSON 由来の好きなシールとフレーバーが出ることを確認する。
-5. `fairy_catalog.json` のファイル名を一時的に変え、`Debug.LogError` が出たうえでゲームが停止しないことを確認する。
-6. JSON の 1 レコードだけ `weight: 0` にし、そのレコードだけスキップされ他は残ることを確認する。
-7. `iconResourcePath` を壊し、その妖精だけ画像 null になるが UI と抽選が落ちないことを確認する。
+### 変更コード
+```csharp
+private void SpawnSticker(Vector3 worldPoint)
+{
+    PeelSticker3D sticker = Instantiate(templateSticker);
+    sticker.name = "Peel Sticker";
+    sticker.transform.SetPositionAndRotation(worldPoint, templateSticker.transform.rotation);
+    sticker.transform.localScale = templateSticker.transform.localScale;
+    sticker.gameObject.SetActive(true);
+    sticker.PeelAmount = 0f;
+    sticker.SetTapPeelEnabled(false);
 
-## 完了条件
-- 妖精マスタが JSON で管理されている。
-- ゲーム開始時に妖精一覧がロードされる。
-- `TapStickerPlacer` と `HudScreenBinder` が JSON 由来データを使っている。
-- `Main.unity` に旧妖精配列が残っていない。
-- ロード失敗時と不正レコード時のログが要件どおり出る。
+    StickerFairyAssignment assignment = ResolveFairyAssignment(selectionState?.SelectedSticker);
+    StickerRuntimeRegistry.Register(sticker, assignment);
+
+    if (assignment != null && assignment.HasFairy)
+    {
+        AttachFairyEffect(sticker);
+    }
+}
+
+private StickerFairyAssignment ResolveFairyAssignment(StickerDefinition selectedSticker)
+{
+    if (selectedSticker == null || string.IsNullOrWhiteSpace(selectedSticker.Id))
+    {
+        return null;
+    }
+
+    if (UnityEngine.Random.value >= 0.5f)
+    {
+        return null;
+    }
+
+    FairyDefinition fairy = StickerFairySelector.Select(
+        selectedSticker.Id,
+        fairyCatalogSource != null ? fairyCatalogSource.GetFairies() : null);
+
+    return fairy != null ? new StickerFairyAssignment(fairy) : null;
+}
+```
+
+## 手順9: 旧抽選コードを整理する
+1. [FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs) の参照がなくなったら削除する。
+2. `FairyDefinition.Weight` を参照するコードが残っていないことを確認する。
+
+## 手順10: 動作確認
+1. ジョウロの `StickerDefinition.Id` を確認する。
+2. JSON でジョウロに対し、妖精 A に `7`、妖精 B に `4` を設定する。
+3. 未発見状態でジョウロを複数配置し、A と B が一次抽選レンジに入ることを確認する。
+4. 片方を発見済みにした後、同じジョウロ配置でその妖精のレンジに当たると空振りになることを確認する。
+5. 好み設定を持たないシール、または発見済み当選で空振りしたケースでだけ `50%` で救済抽選されることを確認する。
+6. 救済抽選時、対象シールを好まない未発見妖精から等確率で選ばれることを確認する。
+7. 剥がし時に、配置時に割り当てられた妖精だけが発見処理されることを確認する。

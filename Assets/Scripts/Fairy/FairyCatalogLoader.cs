@@ -45,6 +45,7 @@ public static class FairyCatalogLoader
         return result;
     }
 
+    // レコード情報から妖精情報を作成
     private static bool TryBuild(FairyRecordDto record, out FairyDefinition fairy)
     {
         fairy = null;
@@ -61,12 +62,6 @@ public static class FairyCatalogLoader
             return false;
         }
 
-        if (record.weight <= 0)
-        {
-            Debug.LogWarning($"Fairy record skipped because weight is invalid. id={record.id} weight={record.weight}");
-            return false;
-        }
-
         Sprite icon = null;
         if(!string.IsNullOrWhiteSpace(record.iconResourcePath))
         {
@@ -80,11 +75,44 @@ public static class FairyCatalogLoader
         fairy = new FairyDefinition(
             record.id,
             record.displayName,
-            record.weight,
             icon,
             record.favoriteStickerText,
-            record.flavorText);
+            record.flavorText,
+            BuildPreferences(record));
         return true;
     }
-        
+
+    private static IReadOnlyList<FairyStickerPreference> BuildPreferences(FairyRecordDto record)
+    {
+        Dictionary<string, int> merged = new();
+        if(record?.preferredStickers == null)
+        {
+            return new List<FairyStickerPreference>();
+        }
+
+        foreach(PreferredStickerDto dto in record.preferredStickers)
+        {
+            if(dto == null || string.IsNullOrWhiteSpace(dto.stickerId) || dto.weight <= 0)
+            {
+                continue;
+            }
+
+            if(merged.TryGetValue(dto.stickerId, out int current))
+            {
+                merged[dto.stickerId] = current + dto.weight;
+            }
+            else
+            {
+                merged[dto.stickerId] = dto.weight;
+            }
+        }
+
+        List<FairyStickerPreference> result = new(merged.Count);
+        foreach((string stickerId, int weight) in merged)
+        {
+            result.Add(new FairyStickerPreference(stickerId, weight));
+        }
+
+        return result;
+    }
 }
