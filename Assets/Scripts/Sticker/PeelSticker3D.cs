@@ -222,12 +222,17 @@ public sealed class PeelSticker3D : MonoBehaviour
         FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
 
         FairyDiscoveryAnimationPlayer animationPlayer = GetDiscoveryAnimationPlayer();
-        if (animationPlayer != null && animationPlayer.TryPlay(() => Destroy(gameObject)))
+        if (animationPlayer != null && animationPlayer.TryPlay(HandleDiscoveryAnimationCompleted))
         {
             return;
         }
 
         Destroy(gameObject, 0.5f);
+    }
+
+    private void HandleDiscoveryAnimationCompleted()
+    {
+        Destroy(gameObject);
     }
 
     private static FairyDiscoveryAnimationPlayer GetDiscoveryAnimationPlayer()

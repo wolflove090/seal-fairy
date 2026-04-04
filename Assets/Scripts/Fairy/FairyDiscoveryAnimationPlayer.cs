@@ -5,11 +5,22 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class FairyDiscoveryAnimationPlayer : MonoBehaviour
 {
+    private enum DiscoveryPlaybackState
+    {
+        Idle,
+        PlayingIntro,
+        WaitingForTap,
+        PlayingOutro
+    }
+
     [SerializeField] private Animation obiAnimation;
     [SerializeField] private SealPhaseController sealPhaseController;
-    [SerializeField] private string clipName = "discovery";
+    [SerializeField] private string introClipName = "discovery_in";
+    [SerializeField] private string outroClipName = "discovery_out";
 
-    private bool isPlaying;
+    private DiscoveryPlaybackState playbackState = DiscoveryPlaybackState.Idle;
+    private Coroutine playingCoroutine;
+    private Action pendingCompletion;
 
     private void Awake()
     {
@@ -31,7 +42,7 @@ public sealed class FairyDiscoveryAnimationPlayer : MonoBehaviour
 
     public bool TryPlay(Action onCompleted)
     {
-        if (isPlaying)
+        if (playbackState != DiscoveryPlaybackState.Idle)
         {
             Debug.LogWarning("FairyDiscoveryAnimationPlayer: 発見演出の多重再生はできません。", this);
             return false;
@@ -43,46 +54,96 @@ public sealed class FairyDiscoveryAnimationPlayer : MonoBehaviour
             return false;
         }
 
-        AnimationClip clip = obiAnimation.GetClip(clipName);
-        if (clip == null)
+        AnimationClip introClip = obiAnimation.GetClip(introClipName);
+        AnimationClip outroClip = obiAnimation.GetClip(outroClipName);
+        if (introClip == null || outroClip == null)
         {
-            Debug.LogWarning($"FairyDiscoveryAnimationPlayer: Animation clip '{clipName}' が見つかりません。", this);
+            Debug.LogWarning(
+                $"FairyDiscoveryAnimationPlayer: intro='{introClipName}', outro='{outroClipName}' のいずれかが見つかりません。",
+                this);
             return false;
         }
 
-        StartCoroutine(PlayRoutine(clip, onCompleted));
+        pendingCompletion = onCompleted;
+        playingCoroutine = StartCoroutine(PlayRoutine(introClip, outroClip));
         return true;
     }
 
-    private IEnumerator PlayRoutine(AnimationClip clip, Action onCompleted)
+    private IEnumerator PlayRoutine(AnimationClip introClip, AnimationClip outroClip)
     {
-        isPlaying = true;
+        playbackState = DiscoveryPlaybackState.PlayingIntro;
         sealPhaseController?.SetPeelingLocked(true);
 
         obiAnimation.Stop();
-        if (!obiAnimation.Play(clip.name))
+        if (!obiAnimation.Play(introClip.name))
         {
-            Debug.LogWarning($"FairyDiscoveryAnimationPlayer: Animation clip '{clip.name}' の再生に失敗しました。", this);
-            isPlaying = false;
-            sealPhaseController?.SetPeelingLocked(false);
+            Debug.LogWarning($"FairyDiscoveryAnimationPlayer: Animation clip '{introClip.name}' の再生に失敗しました。", this);
+            ResetPlaybackState(false);
             yield break;
         }
 
-        yield return new WaitForSeconds(clip.length);
+        yield return new WaitForSeconds(introClip.length);
 
-        isPlaying = false;
+        playbackState = DiscoveryPlaybackState.WaitingForTap;
+        yield return new WaitUntil(TryGetAdvanceInputThisFrame);
+
+        playbackState = DiscoveryPlaybackState.PlayingOutro;
+        obiAnimation.Stop();
+        if (!obiAnimation.Play(outroClip.name))
+        {
+            Debug.LogWarning($"FairyDiscoveryAnimationPlayer: Animation clip '{outroClip.name}' の再生に失敗しました。", this);
+            ResetPlaybackState(true);
+            yield break;
+        }
+
+        yield return new WaitForSeconds(outroClip.length);
+
+        ResetPlaybackState(true);
+    }
+
+    private static bool TryGetAdvanceInputThisFrame()
+    {
+        if (Input.touchCount > 0)
+        {
+            Touch touch = Input.GetTouch(0);
+            if (touch.phase == TouchPhase.Began)
+            {
+                return true;
+            }
+        }
+
+        return Input.GetMouseButtonDown(0);
+    }
+
+    private void ResetPlaybackState(bool invokeCompletion)
+    {
+        Action completion = pendingCompletion;
+        pendingCompletion = null;
+        playingCoroutine = null;
+        playbackState = DiscoveryPlaybackState.Idle;
         sealPhaseController?.SetPeelingLocked(false);
-        onCompleted?.Invoke();
+
+        if (invokeCompletion)
+        {
+            completion?.Invoke();
+        }
     }
 
     private void ReleaseLockIfNeeded()
     {
-        if (!isPlaying)
+        if (playbackState == DiscoveryPlaybackState.Idle)
         {
             return;
         }
 
-        isPlaying = false;
+        if (playingCoroutine != null)
+        {
+            StopCoroutine(playingCoroutine);
+        }
+
+        pendingCompletion = null;
+        playingCoroutine = null;
+        playbackState = DiscoveryPlaybackState.Idle;
         sealPhaseController?.SetPeelingLocked(false);
     }
 }

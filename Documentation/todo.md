@@ -1,53 +1,39 @@
-# 妖精ごとのシール排出テーブル ToDo
+# 妖精発見演出タップ進行改修 ToDo
 
-## フェーズ1: 妖精マスタ構造の更新
-- [ ] [Assets/Scripts/Fairy/FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs) から `Weight` を削除する。
-- [ ] 妖精が複数の好みシール設定を保持できるランタイム構造を追加する。
-- [ ] 好みシール設定 1 件を表す `FairyStickerPreference` を追加する。
-- [ ] `FairyDefinition` から好みシール一覧を参照できるようにする。
+## フェーズ1: 現行単一クリップ前提の置換準備
+- [ ] [Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs) の `clipName` 単一フィールド依存箇所を洗い出す。
+- [ ] イン演出、タップ待機、アウト演出を表す内部状態を定義する。
+- [ ] 多重再生防止と入力ロック解除保証を、新状態遷移でも維持できるよう整理する。
 
-## フェーズ2: JSON DTO / ローダー更新
-- [ ] [Assets/Scripts/Fairy/FairyCatalogDto.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogDto.cs) から `weight` を削除する。
-- [ ] `PreferredStickerDto` を追加する。
-- [ ] [Assets/Scripts/Fairy/FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs) で `preferredStickers` を読み込めるようにする。
-- [ ] 同一妖精の同一 `stickerId` 重複設定をローダーで合算する。
-- [ ] 不正な `stickerId` または `weight <= 0` を個別スキップする。
-- [ ] 好み設定が 0 件でも妖精レコード自体はロード継続する。
+## フェーズ2: 発見演出プレイヤーの状態機械化
+- [ ] `clipName` を `introClipName` と `outroClipName` に分割する。
+- [ ] `TryPlay(Action onCompleted)` がイン用・アウト用クリップ両方を検証してから再生開始するよう変更する。
+- [ ] イン再生完了後に待機状態へ遷移する coroutine を実装する。
+- [ ] 待機中に `Input.GetMouseButtonDown(0)` または `TouchPhase.Began` を 1 回だけ受け付ける処理を追加する。
+- [ ] タップ後にアウト演出を再生し、完了後に `onCompleted` を呼ぶよう変更する。
+- [ ] イン再生中タップとアウト再生中連打を無視し、多重進行を防ぐ。
 
-## フェーズ3: 妖精 JSON の更新
-- [ ] [Assets/GameResources/Resources/Fairy/fairy_catalog.json](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Resources/Fairy/fairy_catalog.json) から旧 `weight` を削除する。
-- [ ] 各妖精レコードへ `preferredStickers` を追加する。
-- [ ] `preferredStickers` に `stickerId` と `weight` を設定する。
-- [ ] ジョウロやハートなど、実際の [StickerDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerDefinition.cs) の `Id` と一致する値になっていることを確認する。
+## フェーズ3: 破棄タイミングとフォールバック整理
+- [ ] [Assets/Scripts/Sticker/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/PeelSticker3D.cs) の `CompletePeel()` が新フロー前提でも 1 回だけ動くことを確認する。
+- [ ] 妖精登録と発見ログ出力が `TryPlay()` 前に 1 回だけ実行されることを維持する。
+- [ ] 発見演出再生成功時は、アウト演出完了後にのみ `Destroy(gameObject)` されるよう維持する。
+- [ ] イン用またはアウト用クリップ未設定時は `Destroy(gameObject, 0.5f)` にフォールバックする経路を維持する。
 
-## フェーズ4: 排出テーブルの事前構築
-- [ ] `StickerFairyTableRepository` を追加する。
-- [ ] ゲーム開始時に全妖精の好み設定からシール別排出テーブルを構築する。
-- [ ] `SubsystemRegistration` で排出テーブルキャッシュをリセットする。
-- [ ] 対象シールごとの総重みを確認できる構造にする。
+## フェーズ4: 入力ロックと後始末の保証
+- [ ] [Assets/Scripts/Phase/SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs) の `SetPeelingLocked` 利用前提が崩れないことを確認する。
+- [ ] `FairyDiscoveryAnimationPlayer` の `OnDisable()` / `OnDestroy()` で待機中でもロック解除されることを保証する。
+- [ ] 異常終了時に callback 二重実行や state 残留が起きないよう後始末を入れる。
 
-## フェーズ5: 抽選ロジックの差し替え
-- [ ] `StickerFairySelector` を追加する。
-- [ ] キャッシュ済み排出テーブルを使って一次抽選を行う。
-- [ ] 発見済み妖精が一次抽選で当選した場合に空振り扱いにする。
-- [ ] 一次抽選候補が 0 件、または発見済み妖精当選で空振りしたときだけ、対象シールを好まない未発見妖精で救済候補を作る。
-- [ ] 救済候補に対して `50%` 発火の等確率抽選を実装する。
+## フェーズ5: シーン設定の更新
+- [ ] [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) の `FairyDiscoveryAnimationPlayer` serialized field を単一 `clipName` からイン用・アウト用へ更新する。
+- [ ] `ObiRoot` の `Animation` にイン演出クリップとアウト演出クリップが登録されていることを Unity Editor 上で確認する。
+- [ ] `Animation` の自動再生設定が意図せず発火しないことを確認する。
 
-## フェーズ6: 配置処理への統合
-- [ ] [Assets/Scripts/Sticker/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) の `SpawnSticker()` から旧 `FairyWeightedRandomSelector.Select()` 呼び出しを除去する。
-- [ ] `50%` の妖精入り判定を維持したまま、新セレクタで `StickerFairyAssignment` を作る。
-- [ ] 妖精なしの場合も既存どおりシールを登録できることを確認する。
-- [ ] 妖精ありの場合だけ既存の `AttachFairyEffect()` を呼ぶ。
-
-## フェーズ7: 不要コードの整理
-- [ ] [Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs) の参照が消えることを確認する。
-- [ ] 不要になった `Weight` 関連コードやログ文言を除去する。
-- [ ] `rg "Weight"` と `rg "FairyWeightedRandomSelector"` で残存参照を確認する。
-
-## フェーズ8: 動作確認
-- [ ] ジョウロに対して `A=7`, `B=4` を設定し、ゲーム開始時に一次抽選レンジが総重み 11 になることを確認する。
-- [ ] 発見済み妖精が候補に残り、当選時に空振りになることを確認する。
-- [ ] 一次抽選候補なし時、または発見済み妖精当選による空振り時にだけ救済抽選が走ることを確認する。
-- [ ] 救済抽選が `50%` で発火することを確認する。
-- [ ] 救済抽選が対象シールを好まない未発見妖精から等確率で選ぶことを確認する。
-- [ ] 配置時に決まった妖精が、めくり時にそのまま消費されることを確認する。
+## フェーズ6: 手動確認
+- [ ] 妖精ありシールをめくった時、イン演出が自動再生されることを確認する。
+- [ ] イン演出完了後、自動では閉じずタップ待機になることを確認する。
+- [ ] 待機中の 1 回タップでアウト演出が再生されることを確認する。
+- [ ] 待機中タップで他シールの剥がしが開始されないことを確認する。
+- [ ] アウト演出完了後にのみ対象シールが破棄されることを確認する。
+- [ ] 妖精なしシールでは従来どおり発見演出なしで破棄されることを確認する。
+- [ ] イン用またはアウト用クリップを外した異常時でも、入力ロックが残らずフォールバック破棄されることを確認する。

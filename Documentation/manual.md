@@ -1,432 +1,246 @@
-# 妖精ごとのシール排出テーブル 作業手順書
+# 妖精発見演出タップ進行改修 作業手順書
 
 ## 目的
-- 妖精ごとに「どのシールをどれだけ好むか」を設定できるようにする。
-- ゲーム開始時に、全妖精の好み設定からシール別排出テーブルを構築する。
-- 配置時は `50%` で妖精入りシールにし、一次抽選が空振りした場合だけ `50%` で救済抽選する。
-- めくり時は、配置時に決めた妖精だけを参照し、再抽選しない。
+- 妖精発見演出を単一アニメーション再生から、イン演出とアウト演出の 2 段階構成へ変更する。
+- 妖精ありシールをめくった後は、イン演出再生後に画面タップ待ちへ入り、タップを契機にアウト演出へ進める。
+- 他シールの剥がし入力ロック、妖精登録、発見ログ、シール破棄タイミングの整合を維持する。
 
 ## 変更対象
-- [Assets/Scripts/Fairy/FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs)
-- [Assets/Scripts/Fairy/FairyCatalogDto.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogDto.cs)
-- [Assets/Scripts/Fairy/FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs)
-- `Assets/Scripts/Fairy/FairyStickerPreference.cs`
-- `Assets/Scripts/Fairy/StickerFairySelector.cs`
-- `Assets/Scripts/Fairy/StickerFairyTableRepository.cs`
-- [Assets/Scripts/Sticker/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs)
-- [Assets/GameResources/Resources/Fairy/fairy_catalog.json](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Resources/Fairy/fairy_catalog.json)
-- [Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs)
+- [Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs)
+- [Assets/Scripts/Sticker/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/PeelSticker3D.cs)
+- [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
 
-## 手順1: 好みシールのランタイムモデルを追加する
-1. `Assets/Scripts/Fairy/FairyStickerPreference.cs` を新規作成する。
-2. 1 件の好み設定が `StickerId` と `Weight` を保持するだけの不変オブジェクトにする。
+## 事前確認
+1. [FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs) を開き、現在が `clipName = "discovery"` の単一クリップ再生であることを確認する。
+2. [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/PeelSticker3D.cs) を開き、`CompletePeel()` が `TryPlay(() => Destroy(gameObject))` に成功した場合だけ即 return していることを確認する。
+3. Unity Editor で [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を開き、`SealPhaseSystem` に `FairyDiscoveryAnimationPlayer` が付いていることを確認する。
+4. `ObiRoot` の `Animation` コンポーネントに、イン演出用とアウト演出用の 2 クリップを登録できる状態か確認する。
 
-### 追加コード
+## 手順1: `FairyDiscoveryAnimationPlayer` を状態機械へ変更する
+1. [FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs) の `clipName` を削除し、`introClipName` と `outroClipName` を追加する。
+2. `isPlaying` boolean を廃止し、少なくとも `Idle`, `PlayingIntro`, `WaitingForTap`, `PlayingOutro` を表す enum を追加する。
+3. 再生中 callback を扱うため、必要なら `Action pendingCompletion` と `Coroutine playingCoroutine` を field に追加する。
+
+### 変更コード例
 ```csharp
-public sealed class FairyStickerPreference
-{
-    public string StickerId { get; }
-    public int Weight { get; }
-
-    public FairyStickerPreference(string stickerId, int weight)
-    {
-        StickerId = stickerId;
-        Weight = weight;
-    }
-}
-```
-
-## 手順2: `FairyDefinition` を更新する
-1. [FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs) から `Weight` を削除する。
-2. `IReadOnlyList<FairyStickerPreference>` を保持するように変更する。
-3. constructor で好みシール一覧を受け取るようにする。
-
-### 変更コード
-```csharp
-using System.Collections.Generic;
+using System;
+using System.Collections;
 using UnityEngine;
 
-[System.Serializable]
-public sealed class FairyDefinition
+[DisallowMultipleComponent]
+public sealed class FairyDiscoveryAnimationPlayer : MonoBehaviour
 {
-    public string Id { get; }
-    public string DisplayName { get; }
-    public Sprite Icon { get; }
-    public string FavoriteStickerText { get; }
-    public string FlavorText { get; }
-    public IReadOnlyList<FairyStickerPreference> PreferredStickers { get; }
-
-    public FairyDefinition(
-        string id,
-        string displayName,
-        Sprite icon,
-        string favoriteStickerText,
-        string flavorText,
-        IReadOnlyList<FairyStickerPreference> preferredStickers)
+    private enum DiscoveryPlaybackState
     {
-        Id = id;
-        DisplayName = displayName;
-        Icon = icon;
-        FavoriteStickerText = favoriteStickerText;
-        FlavorText = flavorText;
-        PreferredStickers = preferredStickers;
+        Idle,
+        PlayingIntro,
+        WaitingForTap,
+        PlayingOutro
     }
-}
+
+    [SerializeField] private Animation obiAnimation;
+    [SerializeField] private SealPhaseController sealPhaseController;
+    [SerializeField] private string introClipName = "discovery_in";
+    [SerializeField] private string outroClipName = "discovery_out";
+
+    private DiscoveryPlaybackState playbackState = DiscoveryPlaybackState.Idle;
+    private Coroutine playingCoroutine;
+    private Action pendingCompletion;
 ```
 
-## 手順3: DTO を更新する
-1. [FairyCatalogDto.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogDto.cs) の `weight` を削除する。
-2. `PreferredStickerDto` を追加する。
-3. `FairyRecordDto` に `preferredStickers` を持たせる。
+4. `TryPlay(Action onCompleted)` は `Idle` 状態でのみ受け付け、イン用とアウト用の両クリップを取得できた場合だけ coroutine を開始するようにする。
 
-### 変更コード
+### `TryPlay` の変更コード例
 ```csharp
-[System.Serializable]
-public sealed class FairyCatalogDto
+public bool TryPlay(Action onCompleted)
 {
-    public FairyRecordDto[] fairies;
-}
-
-[System.Serializable]
-public sealed class FairyRecordDto
-{
-    public string id;
-    public string displayName;
-    public string iconResourcePath;
-    public string favoriteStickerText;
-    public string flavorText;
-    public PreferredStickerDto[] preferredStickers;
-}
-
-[System.Serializable]
-public sealed class PreferredStickerDto
-{
-    public string stickerId;
-    public int weight;
-}
-```
-
-## 手順4: ローダーで好み設定を組み立てる
-1. [FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs) の `weight` 検証を削除する。
-2. `preferredStickers` を `FairyStickerPreference` 一覧へ変換する処理を追加する。
-3. 同一 `stickerId` が重複していたら、Dictionary で合算してから `FairyStickerPreference` 化する。
-4. `weight <= 0` や空 `stickerId` はその要素だけスキップする。
-
-### 変更イメージ
-```csharp
-private static IReadOnlyList<FairyStickerPreference> BuildPreferences(FairyRecordDto record)
-{
-    Dictionary<string, int> merged = new();
-    if (record?.preferredStickers == null)
+    if (playbackState != DiscoveryPlaybackState.Idle)
     {
-        return new List<FairyStickerPreference>();
-    }
-
-    foreach (PreferredStickerDto dto in record.preferredStickers)
-    {
-        if (dto == null || string.IsNullOrWhiteSpace(dto.stickerId) || dto.weight <= 0)
-        {
-            continue;
-        }
-
-        if (merged.TryGetValue(dto.stickerId, out int current))
-        {
-            merged[dto.stickerId] = current + dto.weight;
-        }
-        else
-        {
-            merged[dto.stickerId] = dto.weight;
-        }
-    }
-
-    List<FairyStickerPreference> result = new(merged.Count);
-    foreach ((string stickerId, int weight) in merged)
-    {
-        result.Add(new FairyStickerPreference(stickerId, weight));
-    }
-
-    return result;
-}
-```
-
-### `TryBuild` の変更イメージ
-```csharp
-fairy = new FairyDefinition(
-    record.id,
-    record.displayName,
-    icon,
-    record.favoriteStickerText,
-    record.flavorText,
-    BuildPreferences(record));
-```
-
-## 手順5: JSON を更新する
-1. [fairy_catalog.json](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Resources/Fairy/fairy_catalog.json) の各妖精レコードから `weight` を削除する。
-2. `preferredStickers` を追加する。
-3. `stickerId` は実際の `StickerDefinition.Id` と一致させる。
-
-### JSON 例
-```json
-{
-  "fairies": [
-    {
-      "id": "1",
-      "displayName": "バラちゃん",
-      "iconResourcePath": "Fairy/13",
-      "favoriteStickerText": "自然やお花のシールが好きだぜ！",
-      "flavorText": "なんか常にカッコつけている。\n皆からはほんのり嫌われている。",
-      "preferredStickers": [
-        { "stickerId": "watering-can", "weight": 7 },
-        { "stickerId": "heart", "weight": 3 }
-      ]
-    },
-    {
-      "id": "2",
-      "displayName": "ウルフちゃん",
-      "iconResourcePath": "Fairy/05",
-      "favoriteStickerText": "かっこよくて、もふもふなシールがあるといいなぁ",
-      "flavorText": "実はとっても寂しがりや。\n怖がられると思っているから、遠くから見つめているよ。",
-      "preferredStickers": [
-        { "stickerId": "watering-can", "weight": 4 }
-      ]
-    }
-  ]
-}
-```
-
-## 手順6: シール別排出テーブルを事前構築する
-1. `Assets/Scripts/Fairy/StickerFairyTableRepository.cs` を新規作成する。
-2. ゲーム開始時に全妖精の `PreferredStickers` を走査し、`stickerId` ごとに `(fairy, weight)` を蓄積する。
-3. `GetTable(string stickerId)` で配置時に参照できるようにする。
-
-### 追加コード例
-```csharp
-using System.Collections.Generic;
-using UnityEngine;
-
-public static class StickerFairyTableRepository
-{
-    private static readonly Dictionary<string, List<(FairyDefinition fairy, int weight)>> tables = new();
-    private static bool initialized;
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void Reset()
-    {
-        tables.Clear();
-        initialized = false;
-    }
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    private static void InitializeOnLoad()
-    {
-        Initialize();
-    }
-
-    public static IReadOnlyList<(FairyDefinition fairy, int weight)> GetTable(string stickerId)
-    {
-        if (!initialized)
-        {
-            Initialize();
-        }
-
-        return !string.IsNullOrWhiteSpace(stickerId) && tables.TryGetValue(stickerId, out List<(FairyDefinition fairy, int weight)> table)
-            ? table
-            : null;
-    }
-
-    private static void Initialize()
-    {
-        if (initialized)
-        {
-            return;
-        }
-
-        initialized = true;
-        tables.Clear();
-
-        foreach (FairyDefinition fairy in FairyCatalogRepository.GetFairies())
-        {
-            if (fairy?.PreferredStickers == null)
-            {
-                continue;
-            }
-
-            foreach (FairyStickerPreference preference in fairy.PreferredStickers)
-            {
-                if (preference == null || string.IsNullOrWhiteSpace(preference.StickerId) || preference.Weight <= 0)
-                {
-                    continue;
-                }
-
-                if (!tables.TryGetValue(preference.StickerId, out List<(FairyDefinition fairy, int weight)> table))
-                {
-                    table = new List<(FairyDefinition fairy, int weight)>();
-                    tables[preference.StickerId] = table;
-                }
-
-                table.Add((fairy, preference.Weight));
-            }
-        }
-    }
-}
-```
-
-## 手順7: シール別抽選セレクタを追加する
-1. `Assets/Scripts/Fairy/StickerFairySelector.cs` を新規作成する。
-2. `Select(string stickerId, IReadOnlyList<FairyDefinition> fairies)` を用意する。
-3. `StickerFairyTableRepository.GetTable(stickerId)` から一次抽選テーブルを取得する。
-4. 一次抽選では発見済み妖精も含めて抽選し、当選妖精が発見済みなら空振り扱いにする。
-5. 一次抽選が候補なし、または発見済み当選で空振りなら、対象シールを好まない未発見妖精から救済候補を組み立てる。
-6. 救済候補があり、かつ `Random.value < 0.5f` のときだけ救済当選させる。
-
-### 追加コード例
-```csharp
-using System.Collections.Generic;
-using UnityEngine;
-
-public static class StickerFairySelector
-{
-    public static FairyDefinition Select(string stickerId, IReadOnlyList<FairyDefinition> fairies)
-    {
-        if (string.IsNullOrWhiteSpace(stickerId) || fairies == null || fairies.Count == 0)
-        {
-            return null;
-        }
-
-        List<FairyDefinition> fallback = new();
-        IReadOnlyList<(FairyDefinition fairy, int weight)> primary = StickerFairyTableRepository.GetTable(stickerId);
-
-        FairyDefinition selected = SelectWeighted(primary);
-        if (selected != null && !FairyCollectionService.IsDiscovered(selected.Id))
-        {
-            return selected;
-        }
-
-        foreach (FairyDefinition fairy in fairies)
-        {
-            if (fairy == null || string.IsNullOrWhiteSpace(fairy.Id) || FairyCollectionService.IsDiscovered(fairy.Id))
-            {
-                continue;
-            }
-
-            if (!HasPreferenceForSticker(fairy, stickerId))
-            {
-                fallback.Add(fairy);
-            }
-        }
-
-        if (fallback.Count == 0 || Random.value >= 0.5f)
-        {
-            return null;
-        }
-
-        int index = Random.Range(0, fallback.Count);
-        return fallback[index];
-    }
-
-    private static FairyDefinition SelectWeighted(IReadOnlyList<(FairyDefinition fairy, int weight)> candidates)
-    {
-        int totalWeight = 0;
-        foreach ((FairyDefinition _, int weight) in candidates)
-        {
-            totalWeight += weight;
-        }
-
-        if (totalWeight <= 0)
-        {
-            return null;
-        }
-
-        int roll = Random.Range(1, totalWeight + 1);
-        int accumulated = 0;
-        foreach ((FairyDefinition fairy, int weight) in candidates)
-        {
-            accumulated += weight;
-            if (roll <= accumulated)
-            {
-                return fairy;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool HasPreferenceForSticker(FairyDefinition fairy, string stickerId)
-    {
-        IReadOnlyList<FairyStickerPreference> preferences = fairy?.PreferredStickers;
-        if (preferences == null)
-        {
-            return false;
-        }
-
-        foreach (FairyStickerPreference preference in preferences)
-        {
-            if (preference != null && preference.StickerId == stickerId && preference.Weight > 0)
-            {
-                return true;
-            }
-        }
-
+        Debug.LogWarning("FairyDiscoveryAnimationPlayer: 発見演出の多重再生はできません。", this);
         return false;
     }
+
+    if (obiAnimation == null)
+    {
+        Debug.LogWarning("FairyDiscoveryAnimationPlayer: ObiRoot の Animation が未設定です。", this);
+        return false;
+    }
+
+    AnimationClip introClip = obiAnimation.GetClip(introClipName);
+    AnimationClip outroClip = obiAnimation.GetClip(outroClipName);
+    if (introClip == null || outroClip == null)
+    {
+        Debug.LogWarning(
+            $"FairyDiscoveryAnimationPlayer: intro='{introClipName}', outro='{outroClipName}' のいずれかが見つかりません。",
+            this);
+        return false;
+    }
+
+    pendingCompletion = onCompleted;
+    playingCoroutine = StartCoroutine(PlayRoutine(introClip, outroClip));
+    return true;
 }
 ```
 
-## 手順8: `TapStickerPlacer` を差し替える
-1. [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) の `SpawnSticker()` から `FairyWeightedRandomSelector.Select()` 呼び出しを削除する。
-2. `selectedSticker.Id` を使って `StickerFairySelector.Select()` を呼ぶ。
-3. その前段で `50%` の妖精入り判定を残す。
+## 手順2: イン再生 → タップ待機 → アウト再生の coroutine を実装する
+1. 現在の `PlayRoutine(AnimationClip clip, Action onCompleted)` を廃止し、イン用・アウト用を受け取る coroutine に置き換える。
+2. 開始時に `sealPhaseController?.SetPeelingLocked(true)` を呼ぶ。
+3. イン演出完了まではタップを進行入力として扱わない。
+4. イン完了後、タップ待機状態に遷移し、新規タップ入力を 1 回受けたらアウト演出へ進める。
+5. アウト完了後にロック解除し、`pendingCompletion?.Invoke()` を実行する。
 
-### 変更コード
+### `PlayRoutine` の変更コード例
 ```csharp
-private void SpawnSticker(Vector3 worldPoint)
+private IEnumerator PlayRoutine(AnimationClip introClip, AnimationClip outroClip)
 {
-    PeelSticker3D sticker = Instantiate(templateSticker);
-    sticker.name = "Peel Sticker";
-    sticker.transform.SetPositionAndRotation(worldPoint, templateSticker.transform.rotation);
-    sticker.transform.localScale = templateSticker.transform.localScale;
-    sticker.gameObject.SetActive(true);
-    sticker.PeelAmount = 0f;
-    sticker.SetTapPeelEnabled(false);
+    playbackState = DiscoveryPlaybackState.PlayingIntro;
+    sealPhaseController?.SetPeelingLocked(true);
 
-    StickerFairyAssignment assignment = ResolveFairyAssignment(selectionState?.SelectedSticker);
-    StickerRuntimeRegistry.Register(sticker, assignment);
-
-    if (assignment != null && assignment.HasFairy)
+    obiAnimation.Stop();
+    if (!obiAnimation.Play(introClip.name))
     {
-        AttachFairyEffect(sticker);
-    }
-}
-
-private StickerFairyAssignment ResolveFairyAssignment(StickerDefinition selectedSticker)
-{
-    if (selectedSticker == null || string.IsNullOrWhiteSpace(selectedSticker.Id))
-    {
-        return null;
+        Debug.LogWarning($"FairyDiscoveryAnimationPlayer: Animation clip '{introClip.name}' の再生に失敗しました。", this);
+        ResetPlaybackState(false);
+        yield break;
     }
 
-    if (UnityEngine.Random.value >= 0.5f)
+    yield return new WaitForSeconds(introClip.length);
+
+    playbackState = DiscoveryPlaybackState.WaitingForTap;
+    yield return new WaitUntil(TryGetAdvanceInputThisFrame);
+
+    playbackState = DiscoveryPlaybackState.PlayingOutro;
+    obiAnimation.Stop();
+    if (!obiAnimation.Play(outroClip.name))
     {
-        return null;
+        Debug.LogWarning($"FairyDiscoveryAnimationPlayer: Animation clip '{outroClip.name}' の再生に失敗しました。", this);
+        ResetPlaybackState(true);
+        yield break;
     }
 
-    FairyDefinition fairy = StickerFairySelector.Select(
-        selectedSticker.Id,
-        fairyCatalogSource != null ? fairyCatalogSource.GetFairies() : null);
+    yield return new WaitForSeconds(outroClip.length);
 
-    return fairy != null ? new StickerFairyAssignment(fairy) : null;
+    ResetPlaybackState(true);
 }
 ```
 
-## 手順9: 旧抽選コードを整理する
-1. [FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs) の参照がなくなったら削除する。
-2. `FairyDefinition.Weight` を参照するコードが残っていないことを確認する。
+## 手順3: タップ進行用 helper と後始末を追加する
+1. マウスとタッチの両方を受ける `TryGetAdvanceInputThisFrame()` を追加する。
+2. `ResetPlaybackState(bool invokeCompletion)` のような private method を追加し、ロック解除、state 初期化、callback 実行を一箇所で行う。
+3. `OnDisable()` と `OnDestroy()` では待機中でもロック解除だけは確実に行い、callback は実行しない。
 
-## 手順10: 動作確認
-1. ジョウロの `StickerDefinition.Id` を確認する。
-2. JSON でジョウロに対し、妖精 A に `7`、妖精 B に `4` を設定する。
-3. 未発見状態でジョウロを複数配置し、A と B が一次抽選レンジに入ることを確認する。
-4. 片方を発見済みにした後、同じジョウロ配置でその妖精のレンジに当たると空振りになることを確認する。
-5. 好み設定を持たないシール、または発見済み当選で空振りしたケースでだけ `50%` で救済抽選されることを確認する。
-6. 救済抽選時、対象シールを好まない未発見妖精から等確率で選ばれることを確認する。
-7. 剥がし時に、配置時に割り当てられた妖精だけが発見処理されることを確認する。
+### helper 追加コード例
+```csharp
+private static bool TryGetAdvanceInputThisFrame()
+{
+    if (Input.touchCount > 0)
+    {
+        Touch touch = Input.GetTouch(0);
+        if (touch.phase == TouchPhase.Began)
+        {
+            return true;
+        }
+    }
+
+    return Input.GetMouseButtonDown(0);
+}
+
+private void ResetPlaybackState(bool invokeCompletion)
+{
+    Action completion = pendingCompletion;
+    pendingCompletion = null;
+    playingCoroutine = null;
+    playbackState = DiscoveryPlaybackState.Idle;
+    sealPhaseController?.SetPeelingLocked(false);
+
+    if (invokeCompletion)
+    {
+        completion?.Invoke();
+    }
+}
+
+private void ReleaseLockIfNeeded()
+{
+    if (playbackState == DiscoveryPlaybackState.Idle)
+    {
+        return;
+    }
+
+    pendingCompletion = null;
+    playingCoroutine = null;
+    playbackState = DiscoveryPlaybackState.Idle;
+    sealPhaseController?.SetPeelingLocked(false);
+}
+```
+
+## 手順4: `PeelSticker3D` 側の契約を維持する
+1. [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/PeelSticker3D.cs) の `CompletePeel()` は大きく変えなくてよいが、成功時が「アウト完了後破棄」であることが読み取れる形に整理する。
+2. 直接 `Destroy(gameObject)` をラムダで渡す代わりに private method に切り出してもよい。
+3. フォールバックは現行どおり `Destroy(gameObject, 0.5f)` を維持する。
+
+### 調整コード例
+```csharp
+private void CompletePeel()
+{
+    if (isPeelComplete)
+    {
+        return;
+    }
+
+    isPeelComplete = true;
+    isAutoPeeling = false;
+
+    if (!StickerRuntimeRegistry.TryConsumeFairy(this, out StickerFairyAssignment assignment) || assignment == null || !assignment.HasFairy)
+    {
+        Destroy(gameObject, 0.5f);
+        return;
+    }
+
+    FairyCollectionService.TryRegisterDiscovery(assignment.Fairy, out bool isNewDiscovery);
+    FairyDiscoveryLogger.LogDiscovered(assignment.Fairy, isNewDiscovery);
+
+    FairyDiscoveryAnimationPlayer animationPlayer = GetDiscoveryAnimationPlayer();
+    if (animationPlayer != null && animationPlayer.TryPlay(HandleDiscoveryAnimationCompleted))
+    {
+        return;
+    }
+
+    Destroy(gameObject, 0.5f);
+}
+
+private void HandleDiscoveryAnimationCompleted()
+{
+    Destroy(gameObject);
+}
+```
+
+## 手順5: `Main.unity` の serialized field を更新する
+1. Unity Editor で [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) を開く。
+2. `SealPhaseSystem` の `FairyDiscoveryAnimationPlayer` を選択する。
+3. 旧 `clipName` の代わりに、イン用とアウト用の 2 フィールドが Inspector に表示される状態にする。
+4. イン用には `discovery_in`、アウト用には `discovery_out` を仮設定する。
+5. 実際のアニメーションクリップ名が異なる場合は、その名前に合わせて field を修正する。
+6. `ObiRoot` の `Animation` に両クリップが登録されていることを確認する。
+
+## 手順6: Unity 上で動作確認する
+1. Play モードで妖精ありシールをめくる。
+2. イン演出が自動で再生されることを確認する。
+3. イン演出完了後に自動で閉じず、待機状態になることを確認する。
+4. 待機中に 1 回タップすると、アウト演出が再生されることを確認する。
+5. アウト演出完了後にのみ、対象シールが破棄されることを確認する。
+6. 待機中タップで他シールがめくれないことを確認する。
+7. 妖精なしシールでは従来どおり発見演出なしで消えることを確認する。
+8. イン用またはアウト用クリップ名を一時的に外し、警告ログが出て 0.5 秒フォールバック破棄になることを確認する。
+
+## 完了条件
+- 妖精ありシールで、イン演出再生後にタップ待機へ入る。
+- 待機中タップ 1 回でアウト演出へ進む。
+- 他シールの剥がし入力は演出完了までロックされる。
+- 妖精登録と発見ログは 1 回だけ実行される。
+- 対象シールはアウト演出完了後に破棄される。
+- クリップ未設定などの異常時でも入力ロックが残らず、シールが残留しない。
+
+## 補足
+- `WaitUntil(TryGetAdvanceInputThisFrame)` は毎フレーム評価されるため、helper は新規 `Down` / `Began` のみ返すようにする。
+- 実際のクリップ名が `discovery_in` / `discovery_out` でない場合は、コード上の初期値より Inspector 設定を優先してよい。
+- 今回の作業では、専用の「タップして進む」UI 表示は追加しない。

@@ -1,175 +1,151 @@
-# 妖精ごとのシール排出テーブル 実装計画
+# 妖精発見演出タップ進行改修 実装計画
 
 ## 実装方針
-- 現在の妖精抽選は [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs) から [FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs) を呼ぶ全体重み抽選であり、配置したシール種別を考慮していない。これを「ゲーム開始時に `StickerDefinition.Id` ごとの排出テーブルを構築し、配置時はそのキャッシュを使って抽選する」方式へ置き換える。
-- 妖精の好み情報は JSON マスタに保持し、`FairyDefinition` にランタイムモデルとして展開する。`StickerDefinition` 側には既存の `Id` があるため、新たなマスタを追加せず `stickerId + weight` の組み合わせを妖精定義側へ持たせる。
-- 既存の `FairyDefinition.Weight` は今回の仕様では不要なため削除する。既存 JSON、DTO、ローダー、ランタイムモデル、抽選ロジックから一貫して外す。
-- 配置時の乱数処理は 3 段階に分ける。
-  1. `50%` で妖精入りシールか判定する。
-  2. 妖精入りなら、対象シールの排出テーブルを使って重み付き一次抽選する。
-  3. 一次抽選が候補なし、または発見済み妖精当選で空振りした場合のみ、`50%` で未発見のその他妖精から等確率救済抽選する。
-- 抽選ロジックを `TapStickerPlacer` に直接埋め込まず、ゲーム開始時の排出テーブル構築と配置時の抽選責務を新規セレクタ/リポジトリへ分離する。`TapStickerPlacer` は「配置したシールを渡して妖精割り当て結果を受け取る」だけに留める。
+- 現在の発見演出は [FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs) が単一クリップ `discovery` を `WaitForSeconds(clip.length)` で待機する構成である。これを「イン再生」「タップ待機」「アウト再生」の状態遷移を持つ専用フローへ置き換える。
+- 演出進行中の入力制御は既存の [SealPhaseController.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Phase/SealPhaseController.cs) の `SetPeelingLocked` を引き続き利用し、他シールの剥がし禁止は既存責務のまま維持する。
+- タップ待機中に許可する唯一の入力は `FairyDiscoveryAnimationPlayer` 内で検知し、`PeelSticker3D` や `SealPhaseController` に待機状態専用の分岐を増やしすぎない。
+- [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/PeelSticker3D.cs) は「妖精登録とログ出力を 1 回だけ行う」「演出プレイヤーへ完了コールバックを渡す」「フォールバック破棄へ落とす」の責務に留める。
+- シーン設定は [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity) 上の `FairyDiscoveryAnimationPlayer` Inspector 設定を更新し、単一 `clipName` からイン用・アウト用クリップ名を持てる構成へ合わせる。
 
 ## 変更対象ファイル一覧
-- [Assets/Scripts/Fairy/FairyDefinition.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDefinition.cs)
-  - `Weight` を削除し、好みシール一覧を保持できるランタイムモデルへ変更する。
-- [Assets/Scripts/Fairy/FairyCatalogDto.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogDto.cs)
-  - `weight` を廃止し、`preferredStickers` 配列 DTO を追加する。
-- [Assets/Scripts/Fairy/FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs)
-  - 新 DTO を検証し、`FairyDefinition` を好みシール込みで構築する。
-- [Assets/GameResources/Resources/Fairy/fairy_catalog.json](/Users/tatsuki/Projects/Unity/SealFairy/Assets/GameResources/Resources/Fairy/fairy_catalog.json)
-  - 各妖精に `preferredStickers` を定義し、旧 `weight` を削除する。
-- [Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs)
-  - 廃止または互換用途の整理対象。今回の抽選用途から外す。
-- `Assets/Scripts/Fairy/FairyStickerPreference.cs`
-  - 妖精 1 体が持つ `stickerId + weight` を表す新規ランタイムモデル。
-- `Assets/Scripts/Fairy/StickerFairySelector.cs`
-  - 対象シール ID に対応するキャッシュ済み排出テーブルを参照し、一次抽選と救済抽選で最終妖精を決定する新規クラス。
-- `Assets/Scripts/Fairy/StickerFairyTableRepository.cs`
-  - ゲーム開始時にシール別排出テーブルを構築・保持する新規リポジトリ。
-- [Assets/Scripts/Sticker/TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs)
-  - 既存の単純抽選呼び出しを、新セレクタ経由の割り当てへ差し替える。
-- [Documentation/要件書/妖精ごとのシール排出テーブル要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/妖精ごとのシール排出テーブル要件書.md)
+- [Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyDiscoveryAnimationPlayer.cs)
+  - 単一クリップ前提の再生処理を、イン/待機/アウトの状態機械へ変更する。
+- [Assets/Scripts/Sticker/PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/PeelSticker3D.cs)
+  - 発見演出起動時の完了待ち契約を新フローに合わせ、フォールバック破棄条件を明示する。
+- [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity)
+  - `FairyDiscoveryAnimationPlayer` の serialized field をイン用・アウト用クリップ名へ差し替える。
+- [Documentation/要件書/妖精発見演出タップ進行改修要件書.md](/Users/tatsuki/Projects/Unity/SealFairy/Documentation/要件書/妖精発見演出タップ進行改修要件書.md)
   - 実装判断の基準として参照する。
 
 ## データフロー / 処理フロー
-1. 起動時に [FairyCatalogRepository.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogRepository.cs) が JSON から妖精一覧をロードする。
-2. [FairyCatalogLoader.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyCatalogLoader.cs) が各妖精レコードの `preferredStickers` を読み取り、`FairyStickerPreference` 一覧へ変換する。
-3. `StickerFairyTableRepository` が、全妖精の好み設定を走査し、`stickerId -> (fairy, weight)` の排出テーブルをシールごとに構築してキャッシュする。
-4. 配置時に [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs#L233) が、選択中の `StickerDefinition` を取得する。
-5. `TapStickerPlacer` は `50%` 判定で妖精入りでない場合、従来どおり妖精なしで [StickerRuntimeRegistry.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/StickerRuntimeRegistry.cs) へ登録する。
-6. 妖精入りの場合、`StickerFairySelector` が対象シール ID の排出テーブルから一次抽選を行う。
-7. 一次抽選で未発見妖精が当たればそのまま返し、発見済み妖精当選または候補なしなら空振り扱いにする。
-8. 空振り時のみ、対象シールを好まない未発見妖精を救済候補として集め、`50%` で等確率抽選する。
-9. 最終的に返った妖精を `StickerFairyAssignment` に詰めて登録し、剥がし時は既存どおり割り当て済み結果だけを消費する。
+1. [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/PeelSticker3D.cs) の `CompletePeel()` が妖精ありシールを確定する。
+2. `StickerRuntimeRegistry.TryConsumeFairy()` で割り当て済み妖精を 1 回だけ消費し、`FairyCollectionService.TryRegisterDiscovery()` と `FairyDiscoveryLogger.LogDiscovered()` を現行どおり実行する。
+3. `PeelSticker3D` は `FairyDiscoveryAnimationPlayer.TryPlay(onCompleted)` を呼び、成功時は破棄責務をコールバック側へ委譲する。
+4. `FairyDiscoveryAnimationPlayer` は `sealPhaseController.SetPeelingLocked(true)` を呼び、剥がし入力を全停止する。
+5. プレイヤーはイン用クリップを再生し、終了までは追加タップを無視する。
+6. イン用クリップ終了後、プレイヤーは待機状態へ遷移し、`Input.GetMouseButtonDown(0)` または `TouchPhase.Began` を 1 回検知するまで待つ。
+7. タップを検知したらアウト用クリップを再生し、完了後にロック解除して `onCompleted` を呼ぶ。
+8. `PeelSticker3D` は `onCompleted` で対象シールを破棄する。
+9. 途中で `Animation` 未設定、クリップ未登録、再生失敗があれば、プレイヤーはロック解除を保証して `false` を返すか完了相当処理へ落とし、`PeelSticker3D` は既存の短い遅延破棄へフォールバックする。
 
 ## 詳細設計
 
-### 1. 妖精の好みデータ構造
-- JSON の妖精 1 件は、既存の `id`、`displayName`、`iconResourcePath`、`favoriteStickerText`、`flavorText` に加えて `preferredStickers` 配列を持つ。
-- `preferredStickers` の 1 件は以下の最小構造とする。
-  - `stickerId`
-  - `weight`
-- ランタイムでは `FairyStickerPreference` を新規追加し、`StickerId` と `Weight` を不変値として保持する。
-- `FairyDefinition` は `IReadOnlyList<FairyStickerPreference>` を公開し、UI からは従来どおり表示名、画像、好きなシール文言、フレーバーだけを参照できるようにする。
-- 同一妖精に同一 `stickerId` が複数定義されていた場合は、ローダー段階で合算済みの 1 件へ正規化する。
+### 1. `FairyDiscoveryAnimationPlayer` の状態機械
+- 現状の `isPlaying` boolean だけでは「イン再生中」と「タップ待機中」を区別できないため、少なくとも以下を表せる内部状態へ変更する。
+  - Idle
+  - PlayingIntro
+  - WaitingForTap
+  - PlayingOutro
+- `TryPlay(Action onCompleted)` は `Idle` でのみ受け付ける。
+- イン用クリップの長さ待機は現状どおり `AnimationClip.length` を使用する。
+- 待機中は coroutine 内で毎フレーム入力を監視するか、`Update` ベースの 1 箇所へ集約する。既存ファイル構成を崩さないため、この計画では coroutine 内待機を優先する。
+- アウト完了時は `onCompleted` 実行前に state を `Idle` に戻し、入力ロック解除漏れを防ぐ。
 
-### 2. DTO / ローダーの再設計
-- `FairyRecordDto.weight` は削除する。
-- 代わりに以下の DTO を追加する。
-  - `PreferredStickerDto { string stickerId; int weight; }`
-- `FairyCatalogLoader` は次の検証を担う。
-  - `id` が空でないこと
-  - `preferredStickers` の各要素が null でないこと
-  - `stickerId` が空でないこと
-  - `weight > 0` であること
-- 妥当でない好み設定はその要素だけをスキップし、妖精レコード全体は可能な限り生かす。
-- 好み設定を 1 件も持たない妖精もロードは許可する。該当妖精は通常抽選では出ず、救済抽選候補にのみ入る。
+### 2. クリップ参照の serialized field 設計
+- 現在の `clipName` は [Assets/Main.unity](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Main.unity#L3093) で `discovery` が設定されている。
+- これを `introClipName` と `outroClipName` の 2 フィールドへ分割する。
+- 初期値はアニメーション資産の命名が確定するまで仮に `discovery_in` / `discovery_out` とし、実装時に実在クリップ名へ合わせてシーン設定を更新する。
+- `GetClip()` は両クリップに対して個別に行い、どちらかが欠けた時点で再生開始しない。
 
-### 3. 排出テーブルリポジトリ
-- `StickerFairyTableRepository` は static 管理とし、妖精カタログロード後にシール別排出テーブルを 1 度だけ構築する。
-- テーブルは `Dictionary<string, List<StickerFairyTableEntry>>` のような形で保持し、各エントリは `FairyDefinition` と重みを持つ。
-- 同一 `stickerId` に対して複数妖精の重みを蓄積し、シール単位の総重み計算を容易にする。
-- `SubsystemRegistration` でキャッシュをリセットし、Play Mode 再実行時の状態汚染を防ぐ。
+### 3. タップ待機中の入力判定
+- `PeelSticker3D` 側も `Input.GetMouseButtonDown(0)` / `TouchPhase.Began` を使っているため、待機中タップと剥がし開始タップが競合しないよう、`SealPhaseController.SetPeelingLocked(true)` を維持したままプレイヤー側だけが入力を見る。
+- タップ受付関数は `TryGetAdvanceInputThisFrame()` のような private static helper に切り出し、マウスとタッチの分岐を 1 箇所にまとめる。
+- イン再生中に押されたままの入力を誤って待機直後に拾わないよう、待機開始フレームから新規 `Began` / `Down` のみを対象にする。
 
-### 4. 抽選セレクタ
-- `StickerFairySelector` は static class か軽量 service とし、少なくとも次の責務を持つ。
-  - 対象シールのキャッシュ済み排出テーブル取得
-  - 重み付き乱数抽選
-  - 発見済み当選時の空振り判定
-  - 救済候補の構築
-  - `50%` 救済抽選
-- 一次抽選では発見済み妖精も除外せず、排出テーブル全体を使って抽選する。
-- 一次抽選で当選した妖精が発見済みなら `FairyCollectionService.IsDiscovered(fairy.Id)` により空振り扱いにする。
-- 救済候補は「対象シールを好まない未発見妖精」とする。
-- 乱数レンジは要件書どおり `1..totalWeight` を意識した実装にする。Unity の `Random.Range(int, int)` を使う場合は `0..totalWeight-1` との対応をコメントで明示する。
+### 4. `PeelSticker3D` 側の契約整理
+- 現状の `CompletePeel()` は `TryPlay(() => Destroy(gameObject))` 成功時にのみ即 return し、失敗時は `Destroy(gameObject, 0.5f)` へ落としている。
+- この契約は維持し、成功時は「アウト演出完了後に破棄」、失敗時は「0.5 秒遅延破棄」とする。
+- 妖精登録とログ出力は `TryPlay()` 呼び出し前に既に完了しているため、新フローでも多重実行防止は `isPeelComplete` と `TryConsumeFairy()` に依存して成立する。
+- `Destroy(gameObject)` をコールバック内で直接呼ぶ構成はそのままでよいが、将来の可読性のため `HandleDiscoveryAnimationCompleted()` のような private method に切り出す余地を残す。
 
-### 5. `TapStickerPlacer` の責務整理
-- 現状の `SpawnSticker()` 内には「シール生成」「50% 判定」「妖精抽選」「演出付与」が混在している。
-- 実装では、妖精割り当て部分を `ResolveFairyAssignment(StickerDefinition selectedSticker)` のような private メソッドへ切り出し、その中で `StickerFairySelector` を呼ぶ。
-- `selectedSticker` が null、`selectedSticker.Id` が空、`fairyCatalogSource` が未設定などの異常時は、妖精なしで安全継続する。
-- 妖精が選ばれたときだけ既存の `AttachFairyEffect()` を呼ぶ。
-
-### 6. 既存 `Weight` の整理
-- `FairyDefinition.Weight` は今回の排出仕様では使わないため、モデル・DTO・JSON から削除する。
-- [FairyWeightedRandomSelector.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Fairy/FairyWeightedRandomSelector.cs) は参照箇所が [TapStickerPlacer.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/TapStickerPlacer.cs#L244) のみであるため、差し替え後に不要ファイルとして削除候補にする。
-- 既存コードで `Weight` 参照が残っていないことを `rg "Weight"` で確認する前提で進める。
+### 5. ライフサイクル異常時の後始末
+- 現状の `OnDisable()` / `OnDestroy()` は `ReleaseLockIfNeeded()` のみを行う。これに加えて、待機中 callback の二重呼び出しを防ぐため、完了 callback を field 保持するなら null クリアが必要になる。
+- 再生失敗時に `isPlaying = false` として終了している箇所は、state 設計へ置き換えたうえで必ず `sealPhaseController?.SetPeelingLocked(false)` を通るよう整理する。
+- `Object.FindAnyObjectByType<FairyDiscoveryAnimationPlayer>()` を使う [PeelSticker3D.cs](/Users/tatsuki/Projects/Unity/SealFairy/Assets/Scripts/Sticker/PeelSticker3D.cs#L233) の取得方法は今回は変更しない。計画対象は演出進行改修に限定する。
 
 ## リスクと対策
-- JSON 構造変更により既存 `fairy_catalog.json` がローダー非互換になる。
-  - 対策: DTO と JSON を同時更新し、`weight` 依存の検証を削除する。
-- 妖精が好み設定を持たない場合、通常抽選で一切出なくなる。
-  - 対策: 要件どおり救済抽選候補へ入る挙動を明文化し、ローダーでレコード自体は生かす。
-- 発見済み妖精を一次抽選に含めるため、未発見妖精の体感排出率が下がる。
-  - 対策: これは仕様として受け入れ、空振り時だけ救済抽選を入れて偏りを緩和する。
-- 同一妖精の同一シール重複設定を放置すると、抽選レンジとデータ表示が一致しなくなる。
-  - 対策: ローダーで `stickerId` 単位に合算して正規化する。
-- `TapStickerPlacer` にロジックを足し込みすぎると配置責務と抽選責務が再び混ざる。
-  - 対策: セレクタクラスを追加し、`TapStickerPlacer` では入力とシール生成に責務を限定する。
-- 救済抽選の発火条件を「外れた時」ではなく「候補なし時」にしないと、要件との差異が出る。
-  - 対策: 一次抽選が存在する場合は必ず誰かが当たる設計であり、救済抽選は候補なし時のみに限定する。
+- イン/アウトどちらかのクリップ名がシーン設定と一致しないと、妖精ありシールだけ演出なしフォールバックになる。
+  - 対策: `GetClip(introClipName)` と `GetClip(outroClipName)` の失敗ログを分け、`Main.unity` の serialized value を同一変更で更新する。
+- 待機中タップをプレイヤー側で拾うと、モバイルと Editor で入力差異が出る可能性がある。
+  - 対策: 既存 `PeelSticker3D.TryGetPointerDownPosition()` と同じ条件を使う helper を再利用または同等実装にする。
+- イン完了直後に、イン再生開始時のタップが誤って待機入力として消費される可能性がある。
+  - 対策: `Began` / `GetMouseButtonDown` のみ採用し、押しっぱなし状態は無視する。
+- 途中でオブジェクトが無効化されると、入力ロックだけ残る可能性がある。
+  - 対策: `OnDisable()` と `OnDestroy()` で state と callback を破棄し、`ReleaseLockIfNeeded()` を継続利用する。
+- `PeelSticker3D` 側に待機ロジックまで持ち込むと責務が崩れる。
+  - 対策: 待機判定は `FairyDiscoveryAnimationPlayer` に閉じ込め、`PeelSticker3D` は bool 成功/失敗の契約のみ保つ。
 
 ## 検証方針
-- 手動確認1: ゲーム開始時にシール別排出テーブルが構築されることをログまたはデバッガで確認する。
-- 手動確認2: 例としてジョウロに `A=7`, `B=4` を設定した場合、一次抽選総重みが 11 として扱われることを確認する。
-- 手動確認3: 妖精Aを発見済みにした状態でジョウロを置いたとき、A のレンジに当たると空振りになることを確認する。
-- 手動確認4: 一次抽選候補なし、または発見済み妖精当選による空振り時だけ、救済抽選が `50%` で発火することを確認する。
-- 手動確認5: 救済抽選では、対象シールを好まない未発見妖精から等確率で選ばれることを確認する。
-- 手動確認6: 妖精が割り当てられなかったシールでも、配置と剥がしが正常に継続することを確認する。
-- 手動確認7: めくり時に再抽選が起きず、配置時に確定した妖精だけが消費されることを確認する。
+- 手動確認1: 妖精ありシールをめくると、イン演出が再生された後、自動では終了せず待機状態に入ることを確認する。
+- 手動確認2: 待機中に 1 回タップするとアウト演出が再生され、その完了後にシールが破棄されることを確認する。
+- 手動確認3: 待機中のタップで他シールの剥がしが始まらないことを確認する。
+- 手動確認4: イン演出中に連打しても、アウト演出が先走らないことを確認する。
+- 手動確認5: アウト演出中の連打で多重破棄や例外が発生しないことを確認する。
+- 手動確認6: 妖精なしシールでは従来どおり演出なしで 0.5 秒後に破棄されることを確認する。
+- 手動確認7: イン用またはアウト用クリップ名を意図的に外した状態で、警告ログが出たうえで入力ロックが残らずシールがフォールバック破棄されることを確認する。
 
 ## コードスニペット
 ```csharp
-[System.Serializable]
-public sealed class PreferredStickerDto
-{
-    public string stickerId;
-    public int weight;
-}
+[SerializeField] private string introClipName = "discovery_in";
+[SerializeField] private string outroClipName = "discovery_out";
 
-[System.Serializable]
-public sealed class FairyRecordDto
+private enum DiscoveryPlaybackState
 {
-    public string id;
-    public string displayName;
-    public string iconResourcePath;
-    public string favoriteStickerText;
-    public string flavorText;
-    public PreferredStickerDto[] preferredStickers;
+    Idle,
+    PlayingIntro,
+    WaitingForTap,
+    PlayingOutro
 }
 ```
 
 ```csharp
-public sealed class FairyStickerPreference
+public bool TryPlay(Action onCompleted)
 {
-    public string StickerId { get; }
-    public int Weight { get; }
-
-    public FairyStickerPreference(string stickerId, int weight)
+    if (playbackState != DiscoveryPlaybackState.Idle)
     {
-        StickerId = stickerId;
-        Weight = weight;
+        Debug.LogWarning("FairyDiscoveryAnimationPlayer: 発見演出の多重再生はできません。", this);
+        return false;
     }
+
+    if (!TryGetClips(out AnimationClip introClip, out AnimationClip outroClip))
+    {
+        return false;
+    }
+
+    StartCoroutine(PlayRoutine(introClip, outroClip, onCompleted));
+    return true;
 }
 ```
 
 ```csharp
-private StickerFairyAssignment ResolveFairyAssignment(StickerDefinition selectedSticker)
+private IEnumerator PlayRoutine(AnimationClip introClip, AnimationClip outroClip, Action onCompleted)
 {
-    if (selectedSticker == null || string.IsNullOrWhiteSpace(selectedSticker.Id))
+    playbackState = DiscoveryPlaybackState.PlayingIntro;
+    sealPhaseController?.SetPeelingLocked(true);
+
+    if (!obiAnimation.Play(introClip.name))
     {
-        return null;
+        ReleaseLockIfNeeded();
+        yield break;
     }
 
-    if (UnityEngine.Random.value >= 0.5f)
+    yield return new WaitForSeconds(introClip.length);
+
+    playbackState = DiscoveryPlaybackState.WaitingForTap;
+    yield return new WaitUntil(TryGetAdvanceInputThisFrame);
+
+    playbackState = DiscoveryPlaybackState.PlayingOutro;
+    if (!obiAnimation.Play(outroClip.name))
     {
-        return null;
+        ReleaseLockIfNeeded();
+        onCompleted?.Invoke();
+        yield break;
     }
 
-    FairyDefinition fairy = StickerFairySelector.Select(
-        selectedSticker.Id,
-        fairyCatalogSource.GetFairies());
+    yield return new WaitForSeconds(outroClip.length);
 
-    return fairy != null ? new StickerFairyAssignment(fairy) : null;
+    playbackState = DiscoveryPlaybackState.Idle;
+    sealPhaseController?.SetPeelingLocked(false);
+    onCompleted?.Invoke();
 }
 ```
